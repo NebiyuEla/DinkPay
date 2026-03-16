@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DINK Pay Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --ink: #091322;
+      --panel: rgba(7, 20, 39, 0.78);
+      --panel-soft: rgba(17, 34, 62, 0.72);
+      --line: rgba(149, 255, 196, 0.14);
+      --line-strong: rgba(149, 255, 196, 0.3);
+      --text: #f4f8ff;
+      --muted: rgba(244, 248, 255, 0.64);
+      --subtle: rgba(244, 248, 255, 0.36);
+      --green: #7dffb4;
+      --green-strong: #2ce277;
+      --gold: #ffd76a;
+      --blue: #63a8ff;
+      --red: #ff7d7d;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Manrope', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(44, 226, 119, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(99, 168, 255, 0.18), transparent 24%),
+        linear-gradient(180deg, #07111f 0%, #0d1a2d 50%, #091322 100%);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app-shell {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 40px;
+    }
+
+    .auth-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .auth-card,
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(24px);
+    }
+
+    .auth-card {
+      width: min(540px, 100%);
+      padding: 32px;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      margin-bottom: 10px;
+    }
+
+    .logo span:first-child {
+      color: var(--green);
+    }
+
+    .auth-copy h1,
+    .hero-copy h1 {
+      margin: 0;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 36px;
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .auth-copy p,
+    .hero-copy p {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .auth-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .field,
+    .composer textarea,
+    .composer select {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--panel-soft);
+      color: var(--text);
+      border-radius: 18px;
+      padding: 15px 16px;
+      outline: none;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .field:focus,
+    .composer textarea:focus,
+    .composer select:focus {
+      border-color: var(--line-strong);
+      transform: translateY(-1px);
+    }
+
+    .auth-actions,
+    .order-actions,
+    .toolbar,
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--green), var(--green-strong));
+      color: var(--ink);
+      box-shadow: 0 16px 36px rgba(44, 226, 119, 0.26);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .btn-gold {
+      background: rgba(255, 215, 106, 0.14);
+      color: var(--gold);
+      border: 1px solid rgba(255, 215, 106, 0.34);
+    }
+
+    .btn-blue {
+      background: rgba(99, 168, 255, 0.14);
+      color: var(--blue);
+      border: 1px solid rgba(99, 168, 255, 0.3);
+    }
+
+    .btn-red {
+      background: rgba(255, 125, 125, 0.14);
+      color: var(--red);
+      border: 1px solid rgba(255, 125, 125, 0.28);
+    }
+
+    .auth-note {
+      margin-top: 18px;
+      color: var(--subtle);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .admin-page[hidden],
+    .auth-shell[hidden] {
+      display: none;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      padding: 28px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      inset: auto -100px -120px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(125, 255, 180, 0.24) 0%, rgba(125, 255, 180, 0) 70%);
+      pointer-events: none;
+    }
+
+    .hero-actions {
+      justify-content: flex-end;
+      align-items: flex-start;
+    }
+
+    .status-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      padding: 18px;
+      border-radius: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .stat-value {
+      margin-top: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.9fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .section-title {
+      margin: 0;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 22px;
+      letter-spacing: -0.03em;
+    }
+
+    .section-copy {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .toolbar {
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .toolbar-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    .search {
+      flex: 1 1 280px;
+      position: relative;
+    }
+
+    .search input {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--panel-soft);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 14px 16px 14px 44px;
+      outline: none;
+    }
+
+    .search i {
+      position: absolute;
+      top: 50%;
+      left: 16px;
+      transform: translateY(-50%);
+      color: var(--green);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 12px 16px;
+      font-weight: 700;
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, rgba(125, 255, 180, 0.22), rgba(44, 226, 119, 0.18));
+      color: var(--green);
+      border-color: rgba(125, 255, 180, 0.4);
+    }
+
+    .orders {
+      display: grid;
+      gap: 16px;
+    }
+
+    .order-card {
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(9, 25, 45, 0.88);
+      border: 1px solid var(--line);
+    }
+
+    .order-top,
+    .order-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .order-top {
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .customer {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(125, 255, 180, 0.96), rgba(44, 226, 119, 0.74));
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .customer h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .customer p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .badge-payment-pending {
+      background: rgba(255, 215, 106, 0.12);
+      color: var(--gold);
+      border: 1px solid rgba(255, 215, 106, 0.3);
+    }
+
+    .badge-payment-paid {
+      background: rgba(125, 255, 180, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(125, 255, 180, 0.36);
+    }
+
+    .badge-payment-failed {
+      background: rgba(255, 125, 125, 0.12);
+      color: var(--red);
+      border: 1px solid rgba(255, 125, 125, 0.32);
+    }
+
+    .badge-status-pending {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .badge-status-processing {
+      background: rgba(99, 168, 255, 0.12);
+      color: var(--blue);
+      border: 1px solid rgba(99, 168, 255, 0.28);
+    }
+
+    .badge-status-completed {
+      background: rgba(125, 255, 180, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(125, 255, 180, 0.36);
+    }
+
+    .badge-status-cancelled {
+      background: rgba(255, 125, 125, 0.12);
+      color: var(--red);
+      border: 1px solid rgba(255, 125, 125, 0.32);
+    }
+
+    .order-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .metric label {
+      display: block;
+      color: var(--subtle);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    details.credentials {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.03);
+      margin-bottom: 16px;
+    }
+
+    details.credentials summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 16px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    details.credentials summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .credentials-body {
+      padding: 0 18px 18px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .credential-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .credential-row:first-child {
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .credential-row span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .credential-row code {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--green);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .composer {
+      display: grid;
+      gap: 16px;
+    }
+
+    .service-panel-head {
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .service-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .service-list {
+      display: grid;
+      gap: 12px;
+      max-height: 760px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .service-item {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      padding: 16px;
+      text-align: left;
+    }
+
+    .service-item.active {
+      border-color: rgba(125, 255, 180, 0.36);
+      background: rgba(125, 255, 180, 0.1);
+    }
+
+    .service-item strong,
+    .service-item span {
+      display: block;
+    }
+
+    .service-item span {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .service-editor {
+      display: grid;
+      gap: 16px;
+    }
+
+    .service-editor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .service-editor-label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .service-editor textarea {
+      min-height: 160px;
+      resize: vertical;
+    }
+
+    .note-banner {
+      margin-bottom: 16px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 125, 125, 0.08);
+      border: 1px solid rgba(255, 125, 125, 0.18);
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .composer textarea {
+      min-height: 148px;
+      resize: vertical;
+    }
+
+    .composer-helper {
+      color: var(--subtle);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .empty-state,
+    .loading-state {
+      padding: 48px 22px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line-strong);
+      background: rgba(8, 24, 44, 0.9);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      z-index: 1000;
+      animation: slideIn 0.2s ease;
+    }
+
+    .toast.error {
+      border-color: rgba(255, 125, 125, 0.34);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateY(12px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @media (max-width: 1180px) {
+      .overview-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .layout-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app-shell {
+        width: min(100vw - 24px, 100%);
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .status-stack {
+        align-items: flex-start;
+      }
+
+      .overview-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .order-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .credential-row {
+        grid-template-columns: 1fr;
+      }
+
+      .service-layout,
+      .service-editor-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .overview-grid,
+      .order-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .auth-card,
+      .panel,
+      .hero,
+      .stat-card,
+      .order-card {
+        border-radius: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-shell" id="loginView">
+    <div class="auth-card">
+      <div class="logo"><span>DINK</span><span>PAY</span></div>
+      <div class="auth-copy">
+        <h1>Admin operations that match the live payment flow</h1>
+        <p>Sign in to review paid orders and payment-check orders, inspect the submitted credentials, update processing status, and send customer notifications one by one or in bulk.</p>
+      </div>
+
+      <form id="loginForm" class="auth-grid">
+        <div>
+          <label class="field-label" for="apiUrl">API base URL</label>
+          <input class="field" id="apiUrl" placeholder="http://localhost:5000/api">
+        </div>
+        <div>
+          <label class="field-label" for="adminUsername">Username</label>
+          <input class="field" id="adminUsername" placeholder="admin" autocomplete="username">
+        </div>
+        <div>
+          <label class="field-label" for="adminPassword">Password</label>
+          <input class="field" id="adminPassword" type="password" placeholder="Enter password" autocomplete="current-password">
+        </div>
+        <div class="auth-actions">
+          <button class="btn btn-primary" type="submit" id="loginButton">Sign In</button>
+        </div>
+      </form>
+
+      <p class="auth-note">Tip: if you serve this page from the backend, the API field will auto-fill with the correct host. If you open the file directly, point it to your backend, for example <strong>http://localhost:5000/api</strong>.</p>
+    </div>
+  </div>
+  <div class="dashboard admin-page" id="dashboardView" hidden>
+    <div class="app-shell">
+      <section class="hero panel">
+        <div class="hero-copy">
+          <div class="logo"><span>DINK</span><span>PAY</span></div>
+          <h1>Payments, credentials, and customer delivery in one place</h1>
+          <p>Review Chapa payment state, inspect submitted account details, move orders into processing, complete them, and keep customers updated automatically.</p>
+        </div>
+        <div class="status-stack">
+          <div class="chip"><i class="fas fa-server"></i><span id="apiLabel">API</span></div>
+          <div class="chip"><i class="fas fa-clock"></i><span id="lastUpdated">Last updated just now</span></div>
+          <div class="hero-actions">
+            <button class="btn btn-secondary" id="openServicesButton"><i class="fas fa-layer-group"></i> Services</button>
+            <button class="btn btn-secondary" id="refreshButton"><i class="fas fa-rotate-right"></i> Refresh</button>
+            <button class="btn btn-red" id="logoutButton"><i class="fas fa-right-from-bracket"></i> Logout</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="overview-grid">
+        <article class="stat-card">
+          <div class="stat-label">Total Orders</div>
+          <div class="stat-value" id="statTotal">0</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Payment Check</div>
+          <div class="stat-value" id="statUnpaid">0</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Paid</div>
+          <div class="stat-value" id="statPaid">0</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Processing</div>
+          <div class="stat-value" id="statProcessing">0</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Completed</div>
+          <div class="stat-value" id="statCompleted">0</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Paid Revenue</div>
+          <div class="stat-value" id="statRevenue">0 ETB</div>
+        </article>
+      </section>
+
+      <section class="layout-grid">
+        <div>
+          <section class="panel" style="margin-bottom: 24px;">
+            <div class="toolbar">
+              <div class="toolbar-controls">
+                <div class="search">
+                  <i class="fas fa-search"></i>
+                  <input id="searchInput" placeholder="Search by customer, service, tx ref, order id, or email">
+                </div>
+                <div class="tabs" id="statusTabs">
+                  <button class="tab active" data-filter="all">All</button>
+                  <button class="tab" data-filter="unpaid">Payment Check</button>
+                  <button class="tab" data-filter="paid">Paid</button>
+                  <button class="tab" data-filter="processing">Processing</button>
+                  <button class="tab" data-filter="completed">Completed</button>
+                </div>
+              </div>
+            </div>
+            <div id="ordersList" class="orders">
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading orders...</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="panel">
+          <h2 class="section-title">Customer notifications</h2>
+          <p class="section-copy">Broadcast to every customer or target a single user when you want to share payment updates, delivery notes, or support messages.</p>
+
+          <form class="composer" id="composerForm" style="margin-top: 20px;">
+            <div>
+              <label class="field-label" for="recipientSelect">Recipient</label>
+              <select id="recipientSelect">
+                <option value="all">All customers</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="messageTitle">Title</label>
+              <input class="field" id="messageTitle" placeholder="Payment update">
+            </div>
+            <div>
+              <label class="field-label" for="messageBody">Message</label>
+              <textarea id="messageBody" placeholder="Write the message customers should receive"></textarea>
+            </div>
+            <div class="composer-helper" id="composerHint">Messages sent from here are stored in each customer's notification feed inside the user app.</div>
+            <div class="auth-actions">
+              <button class="btn btn-primary" type="submit" id="sendButton"><i class="fas fa-paper-plane"></i> Send notification</button>
+            </div>
+          </form>
+        </aside>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="dashboard admin-page" id="servicesView" hidden>
+    <div class="app-shell">
+      <section class="hero panel">
+        <div class="hero-copy">
+          <div class="logo"><span>DINK</span><span>PAY</span></div>
+          <h1>Live service catalog management</h1>
+          <p>Add, edit, and delete the services and plans the mini app uses in real time without mixing them into the orders dashboard.</p>
+        </div>
+        <div class="status-stack">
+          <div class="chip"><i class="fas fa-server"></i><span id="servicesApiLabel">API</span></div>
+          <div class="chip"><i class="fas fa-clock"></i><span id="servicesLastUpdated">Last updated just now</span></div>
+          <div class="hero-actions">
+            <button class="btn btn-secondary" id="backToDashboardButton"><i class="fas fa-arrow-left"></i> Orders</button>
+            <button class="btn btn-secondary" id="servicesRefreshButton"><i class="fas fa-rotate-right"></i> Refresh</button>
+            <button class="btn btn-red" id="servicesLogoutButton"><i class="fas fa-right-from-bracket"></i> Logout</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="service-panel-head">
+          <div>
+            <h2 class="section-title">Service Catalog</h2>
+            <p class="section-copy">Create new services, adjust plans, and remove old catalog entries from one focused page.</p>
+          </div>
+        </div>
+
+        <div class="service-layout">
+          <div id="serviceList" class="service-list">
+            <div class="loading-state">
+              <i class="fas fa-spinner fa-spin"></i>
+              <p>Loading services...</p>
+            </div>
+          </div>
+
+          <form class="service-editor" id="serviceForm">
+            <div class="service-editor-label" id="serviceEditorLabel">Create service</div>
+
+            <div class="service-editor-grid">
+              <div>
+                <label class="field-label" for="serviceIdField">Service ID</label>
+                <input class="field" id="serviceIdField" placeholder="telegram-premium">
+              </div>
+              <div>
+                <label class="field-label" for="serviceNameField">Service name</label>
+                <input class="field" id="serviceNameField" placeholder="Telegram Premium">
+              </div>
+              <div>
+                <label class="field-label" for="serviceIconField">Icon path</label>
+                <input class="field" id="serviceIconField" placeholder="/icons/telegram.svg">
+              </div>
+              <div>
+                <label class="field-label" for="serviceFallbackField">Fallback</label>
+                <input class="field" id="serviceFallbackField" placeholder="TG">
+              </div>
+              <div>
+                <label class="field-label" for="serviceColorField">Color</label>
+                <input class="field" id="serviceColorField" placeholder="#0088cc">
+              </div>
+              <div>
+                <label class="field-label" for="serviceCategoryField">Category</label>
+                <input class="field" id="serviceCategoryField" placeholder="social">
+              </div>
+              <div>
+                <label class="field-label" for="servicePopularField">Popular</label>
+                <select id="servicePopularField">
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="serviceCredentialsField">Needs credentials</label>
+                <select id="serviceCredentialsField">
+                  <option value="false">No</option>
+                  <option value="true">Yes</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="field-label" for="servicePlansField">Plans JSON</label>
+              <textarea id="servicePlansField" class="field" placeholder='[{"name":"Monthly","price":2400}]'></textarea>
+            </div>
+
+            <div>
+              <label class="field-label" for="serviceInputsField">Inputs JSON</label>
+              <textarea id="serviceInputsField" class="field" placeholder='[{"type":"text","label":"Username","placeholder":"@username"}]'></textarea>
+            </div>
+
+            <div class="auth-actions">
+              <button class="btn btn-secondary" type="button" id="newServiceButton"><i class="fas fa-plus"></i> New service</button>
+              <button class="btn btn-red" type="button" id="deleteServiceButton"><i class="fas fa-trash"></i> Delete service</button>
+              <button class="btn btn-primary" type="submit" id="saveServiceButton"><i class="fas fa-floppy-disk"></i> Save service</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const inferredApiUrl = (() => {
+      if (window.location.origin && window.location.origin !== 'null' && window.location.origin !== 'file://') {
+        return `${window.location.origin.replace(/\/$/, '')}/api`;
+      }
+      return 'http://localhost:5000/api';
+    })();
+
+    let API_URL = localStorage.getItem('dinkAdminApiUrl') || inferredApiUrl;
+    let adminToken = localStorage.getItem('dinkAdminToken') || '';
+    let allOrders = [];
+    let allUsers = [];
+    let allServices = [];
+    let activeFilter = 'all';
+    let searchQuery = '';
+    let refreshTimer = null;
+    let editingServiceId = null;
+    let currentAdminPage = window.location.hash === '#services'
+      ? 'services'
+      : (localStorage.getItem('dinkAdminPage') === 'services' ? 'services' : 'dashboard');
+
+    const loginView = document.getElementById('loginView');
+    const dashboardView = document.getElementById('dashboardView');
+    const servicesView = document.getElementById('servicesView');
+    const apiUrlInput = document.getElementById('apiUrl');
+    const loginForm = document.getElementById('loginForm');
+    const loginButton = document.getElementById('loginButton');
+    const refreshButton = document.getElementById('refreshButton');
+    const openServicesButton = document.getElementById('openServicesButton');
+    const logoutButton = document.getElementById('logoutButton');
+    const backToDashboardButton = document.getElementById('backToDashboardButton');
+    const servicesRefreshButton = document.getElementById('servicesRefreshButton');
+    const servicesLogoutButton = document.getElementById('servicesLogoutButton');
+    const searchInput = document.getElementById('searchInput');
+    const ordersList = document.getElementById('ordersList');
+    const recipientSelect = document.getElementById('recipientSelect');
+    const composerForm = document.getElementById('composerForm');
+    const messageTitle = document.getElementById('messageTitle');
+    const messageBody = document.getElementById('messageBody');
+    const apiLabel = document.getElementById('apiLabel');
+    const lastUpdated = document.getElementById('lastUpdated');
+    const servicesApiLabel = document.getElementById('servicesApiLabel');
+    const servicesLastUpdated = document.getElementById('servicesLastUpdated');
+    const serviceList = document.getElementById('serviceList');
+    const serviceForm = document.getElementById('serviceForm');
+    const newServiceButton = document.getElementById('newServiceButton');
+    const deleteServiceButton = document.getElementById('deleteServiceButton');
+    const serviceEditorLabel = document.getElementById('serviceEditorLabel');
+    const serviceIdField = document.getElementById('serviceIdField');
+    const serviceNameField = document.getElementById('serviceNameField');
+    const serviceIconField = document.getElementById('serviceIconField');
+    const serviceFallbackField = document.getElementById('serviceFallbackField');
+    const serviceColorField = document.getElementById('serviceColorField');
+    const serviceCategoryField = document.getElementById('serviceCategoryField');
+    const servicePopularField = document.getElementById('servicePopularField');
+    const serviceCredentialsField = document.getElementById('serviceCredentialsField');
+    const servicePlansField = document.getElementById('servicePlansField');
+    const serviceInputsField = document.getElementById('serviceInputsField');
+
+    apiUrlInput.value = API_URL;
+    document.getElementById('adminUsername').value = 'admin';
+
+    const escapeHtml = (value = '') =>
+      String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const formatDate = (value) => {
+      if (!value) return 'Not available';
+      return new Date(value).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    const formatMoney = (value = 0) => `${Number(value || 0).toLocaleString()} ETB`;
+    const getInitial = (value = '') => value.trim().charAt(0).toUpperCase() || '?';
+
+    const getPaymentBadgeClass = (status) => {
+      if (status === 'paid') return 'badge badge-payment-paid';
+      if (status === 'failed') return 'badge badge-payment-failed';
+      return 'badge badge-payment-pending';
+    };
+
+    const getPaymentLabel = (status) => {
+      if (status === 'paid') return 'paid';
+      if (status === 'failed') return 'failed';
+      if (status === 'refunded') return 'refunded';
+      return 'payment check';
+    };
+
+    const getStatusBadgeClass = (status) => {
+      if (status === 'processing') return 'badge badge-status-processing';
+      if (status === 'completed') return 'badge badge-status-completed';
+      if (status === 'cancelled') return 'badge badge-status-cancelled';
+      return 'badge badge-status-pending';
+    };
+
+    const getStatusLabel = (order) => {
+      if (order?.status === 'cancelled') return 'cancelled';
+      if (order?.status === 'completed') return 'completed';
+      if (order?.status === 'processing') return 'processing';
+      if (order?.paymentStatus !== 'paid') return 'payment check';
+      return 'pending';
+    };
+
+    const formatJson = (value) => JSON.stringify(value || [], null, 2);
+
+    const updateServiceActionState = () => {
+      deleteServiceButton.disabled = !editingServiceId;
+    };
+
+    const resetServiceForm = () => {
+      editingServiceId = null;
+      serviceEditorLabel.textContent = 'Create service';
+      serviceIdField.value = '';
+      serviceNameField.value = '';
+      serviceIconField.value = '';
+      serviceFallbackField.value = '';
+      serviceColorField.value = '#0b2d22';
+      serviceCategoryField.value = 'general';
+      servicePopularField.value = 'false';
+      serviceCredentialsField.value = 'false';
+      servicePlansField.value = formatJson([{ name: 'Monthly', price: 100 }]);
+      serviceInputsField.value = formatJson([]);
+      updateServiceActionState();
+      renderServicesList();
+    };
+
+    const fillServiceForm = (service) => {
+      if (!service) {
+        resetServiceForm();
+        return;
+      }
+
+      editingServiceId = service.id;
+      serviceEditorLabel.textContent = `Editing ${service.name}`;
+      serviceIdField.value = service.id || '';
+      serviceNameField.value = service.name || '';
+      serviceIconField.value = service.icon || '';
+      serviceFallbackField.value = service.fallback || '';
+      serviceColorField.value = service.color || '#0b2d22';
+      serviceCategoryField.value = service.category || 'general';
+      servicePopularField.value = String(Boolean(service.popular));
+      serviceCredentialsField.value = String(Boolean(service.requiresCredentials));
+      servicePlansField.value = formatJson(service.plans);
+      serviceInputsField.value = formatJson(service.inputs);
+      updateServiceActionState();
+      renderServicesList();
+    };
+
+    const parseJsonField = (value, label) => {
+      try {
+        const parsed = JSON.parse(value || '[]');
+        if (!Array.isArray(parsed)) {
+          throw new Error(`${label} must be a JSON array.`);
+        }
+        return parsed;
+      } catch (error) {
+        throw new Error(`${label} must be valid JSON.`);
+      }
+    };
+
+    const renderServicesList = () => {
+      if (!allServices.length) {
+        serviceList.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-box-open" style="font-size: 28px; margin-bottom: 12px;"></i>
+            <p>No services in the catalog yet.</p>
+          </div>
+        `;
+        return;
+      }
+
+      serviceList.innerHTML = allServices
+        .map((service) => `
+          <button
+            type="button"
+            class="service-item ${editingServiceId === service.id ? 'active' : ''}"
+            onclick="selectServiceEditor('${escapeHtml(service.id)}')"
+          >
+            <strong>${escapeHtml(service.name)}</strong>
+            <span>${escapeHtml(service.id)} • ${escapeHtml(service.category || 'general')}</span>
+            <span>${service.plans?.length || 0} plan(s)</span>
+          </button>
+        `)
+        .join('');
+    };
+
+    const showToast = (message, type = 'success') => {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type === 'error' ? 'error' : ''}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      window.setTimeout(() => toast.remove(), 3200);
+    };
+
+    const setAdminPage = (page) => {
+      currentAdminPage = page === 'services' ? 'services' : 'dashboard';
+      localStorage.setItem('dinkAdminPage', currentAdminPage);
+      window.location.hash = currentAdminPage === 'services' ? 'services' : 'dashboard';
+      dashboardView.hidden = currentAdminPage !== 'dashboard';
+      servicesView.hidden = currentAdminPage !== 'services';
+    };
+
+    const setApiUrl = (value) => {
+      API_URL = (value || inferredApiUrl).replace(/\/$/, '');
+      apiUrlInput.value = API_URL;
+      apiLabel.textContent = API_URL;
+      servicesApiLabel.textContent = API_URL;
+      localStorage.setItem('dinkAdminApiUrl', API_URL);
+    };
+
+    const authFetch = async (path, options = {}) => {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {})
+        }
+      });
+
+      if (response.status === 401 && adminToken) {
+        handleLogout(false);
+        throw new Error('Your admin session expired. Please sign in again.');
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || 'Request failed');
+      }
+
+      return data;
+    };
+
+    const matchesFilter = (order) => {
+      if (activeFilter === 'unpaid') return order.paymentStatus !== 'paid';
+      if (activeFilter === 'paid') return order.paymentStatus === 'paid' && order.status === 'pending';
+      if (activeFilter === 'processing') return order.status === 'processing';
+      if (activeFilter === 'completed') return order.status === 'completed';
+      return true;
+    };
+
+    const matchesSearch = (order) => {
+      if (!searchQuery) return true;
+
+      const haystack = [
+        order.orderId,
+        order.transactionId,
+        order.service?.name,
+        order.plan?.name,
+        order.user?.fullName,
+        order.user?.email,
+        order.user?.phone
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(searchQuery);
+    };
+
+    const getVisibleOrders = () => allOrders.filter((order) => matchesFilter(order) && matchesSearch(order));
+
+    const selectRecipientForOrder = (userId) => {
+      recipientSelect.value = userId || 'all';
+      if (!messageTitle.value) {
+        messageTitle.value = 'Order update';
+      }
+      messageBody.focus();
+      showToast('Notification composer is ready for that customer.');
+    };
+
+    const renderOrders = () => {
+      const visibleOrders = getVisibleOrders();
+
+      if (visibleOrders.length === 0) {
+        ordersList.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-inbox" style="font-size: 28px; margin-bottom: 12px;"></i>
+            <p>No orders match the current filter.</p>
+          </div>
+        `;
+        return;
+      }
+
+      ordersList.innerHTML = visibleOrders
+        .map((order) => {
+          const credentials = order.credentials || {};
+          const hasCredentials = Object.keys(credentials).length > 0;
+          const customerName = order.user?.fullName || 'Unknown customer';
+          const customerEmail = order.user?.email || 'No email';
+          const customerPhone = order.user?.phone || 'No phone';
+          const serviceName = order.service?.name || 'Unknown service';
+          const planName = order.plan?.name || 'Plan not found';
+          const canComplete = order.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(order.status);
+          const canCancel = !['completed', 'cancelled'].includes(order.status);
+
+          return `
+            <article class="order-card">
+              <div class="order-top">
+                <div class="customer">
+                  <div class="avatar">${escapeHtml(getInitial(customerName))}</div>
+                  <div>
+                    <h3>${escapeHtml(customerName)}</h3>
+                    <p>${escapeHtml(customerEmail)}</p>
+                    <p>${escapeHtml(customerPhone)}</p>
+                  </div>
+                </div>
+                <div class="badges">
+                  <span class="${getPaymentBadgeClass(order.paymentStatus)}"><i class="fas fa-wallet"></i>${escapeHtml(getPaymentLabel(order.paymentStatus))}</span>
+                  <span class="${getStatusBadgeClass(order.status)}"><i class="fas fa-briefcase"></i>${escapeHtml(getStatusLabel(order))}</span>
+                </div>
+              </div>
+
+              <div class="order-grid">
+                <div class="metric">
+                  <label>Service</label>
+                  <strong>${escapeHtml(serviceName)}</strong>
+                </div>
+                <div class="metric">
+                  <label>Plan</label>
+                  <strong>${escapeHtml(planName)}</strong>
+                </div>
+                <div class="metric">
+                  <label>Amount</label>
+                  <strong>${escapeHtml(formatMoney(order.totalAmount))}</strong>
+                </div>
+                <div class="metric">
+                  <label>Order ID</label>
+                  <strong>${escapeHtml(order.orderId || 'N/A')}</strong>
+                </div>
+                <div class="metric">
+                  <label>Transaction Ref</label>
+                  <strong>${escapeHtml(order.transactionId || 'Not created')}</strong>
+                </div>
+                <div class="metric">
+                  <label>Created</label>
+                  <strong>${escapeHtml(formatDate(order.createdAt))}</strong>
+                </div>
+                <div class="metric">
+                  <label>Paid At</label>
+                  <strong>${escapeHtml(formatDate(order.paidAt))}</strong>
+                </div>
+                <div class="metric">
+                  <label>Completed</label>
+                  <strong>${escapeHtml(formatDate(order.completedAt))}</strong>
+                </div>
+              </div>
+
+              <details class="credentials" ${hasCredentials ? '' : 'open'}>
+                <summary>
+                  <span><i class="fas fa-key" style="margin-right: 8px; color: var(--green);"></i>Submitted credentials</span>
+                  <span class="muted">${hasCredentials ? 'Tap to review' : 'No credentials on this order'}</span>
+                </summary>
+                <div class="credentials-body">
+                  ${
+                    hasCredentials
+                      ? Object.entries(credentials)
+                          .map(([key, value]) => `
+                            <div class="credential-row">
+                              <span>${escapeHtml(key)}</span>
+                              <code>${escapeHtml(value)}</code>
+                            </div>
+                          `)
+                          .join('')
+                      : '<div class="muted">This service does not require credentials or the customer did not submit any extra account details.</div>'
+                  }
+                </div>
+              </details>
+
+              ${
+                order.adminNote
+                  ? `<div class="note-banner"><strong style="color: var(--red);">Admin note:</strong> ${escapeHtml(order.adminNote)}</div>`
+                  : ''
+              }
+
+              <div class="order-actions">
+                ${
+                  order.paymentStatus !== 'paid' && order.status !== 'cancelled'
+                    ? `<button class="btn btn-gold" onclick="updateOrder('${order._id}', { paymentStatus: 'paid' }, 'Payment marked as paid.')"><i class="fas fa-circle-check"></i> Mark paid</button>`
+                    : ''
+                }
+                ${
+                  order.paymentStatus === 'paid' && order.status === 'pending'
+                    ? `<button class="btn btn-blue" onclick="updateOrder('${order._id}', { status: 'processing' }, 'Order moved into processing.')"><i class="fas fa-gears"></i> Start processing</button>`
+                    : ''
+                }
+                ${
+                  canComplete
+                    ? `<button class="btn btn-primary" onclick="updateOrder('${order._id}', { status: 'completed' }, 'Order marked as completed.')"><i class="fas fa-box-check"></i> Mark completed</button>`
+                    : ''
+                }
+                ${
+                  canCancel
+                    ? `<button class="btn btn-red" onclick="cancelOrder('${order._id}')"><i class="fas fa-ban"></i> Cancel order</button>`
+                    : ''
+                }
+                <button class="btn btn-secondary" onclick="selectRecipientForOrder('${order.userId}')"><i class="fas fa-paper-plane"></i> Message customer</button>
+              </div>
+            </article>
+          `;
+        })
+        .join('');
+    };
+
+    const refreshDashboard = async (silent = false) => {
+      try {
+        if (!silent) {
+          refreshButton.disabled = true;
+          servicesRefreshButton.disabled = true;
+          if (currentAdminPage === 'dashboard') {
+            ordersList.innerHTML = `
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Refreshing dashboard...</p>
+              </div>
+            `;
+          }
+        }
+
+        const [statsData, ordersData, usersData, servicesData] = await Promise.all([
+          authFetch('/admin/stats'),
+          authFetch('/admin/orders'),
+          authFetch('/admin/users'),
+          authFetch('/admin/services')
+        ]);
+
+        const stats = statsData.stats || {};
+        allOrders = ordersData.orders || [];
+        allUsers = usersData.users || [];
+        allServices = servicesData.services || [];
+
+        document.getElementById('statTotal').textContent = stats.total || 0;
+        document.getElementById('statUnpaid').textContent = stats.unpaid || 0;
+        document.getElementById('statPaid').textContent = stats.paid || 0;
+        document.getElementById('statProcessing').textContent = stats.processing || 0;
+        document.getElementById('statCompleted').textContent = stats.completed || 0;
+        document.getElementById('statRevenue').textContent = formatMoney(stats.revenue);
+
+        const currentRecipient = recipientSelect.value;
+        recipientSelect.innerHTML = '<option value="all">All customers</option>' +
+          allUsers
+            .map((user) => `
+              <option value="${escapeHtml(user._id)}">
+                ${escapeHtml(user.fullName || 'Unnamed')} (${escapeHtml(user.email || user.phone || 'No contact')})
+              </option>
+            `)
+            .join('');
+        if ([...recipientSelect.options].some((option) => option.value === currentRecipient)) {
+          recipientSelect.value = currentRecipient;
+        }
+
+        if (editingServiceId) {
+          fillServiceForm(allServices.find((service) => service.id === editingServiceId));
+        } else if (!serviceIdField.value && allServices.length > 0) {
+          fillServiceForm(allServices[0]);
+        } else {
+          renderServicesList();
+        }
+
+        const updatedText = `Last updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        lastUpdated.textContent = updatedText;
+        servicesLastUpdated.textContent = updatedText;
+        renderOrders();
+      } catch (error) {
+        if (currentAdminPage === 'dashboard') {
+          ordersList.innerHTML = `
+            <div class="empty-state">
+              <i class="fas fa-triangle-exclamation" style="font-size: 28px; margin-bottom: 12px;"></i>
+              <p>${escapeHtml(error.message || 'Unable to load admin data.')}</p>
+            </div>
+          `;
+        }
+        if (!silent) {
+          showToast(error.message || 'Unable to load dashboard.', 'error');
+        }
+      } finally {
+        refreshButton.disabled = false;
+        servicesRefreshButton.disabled = false;
+      }
+    };
+
+    const startAutoRefresh = () => {
+      clearInterval(refreshTimer);
+      refreshTimer = window.setInterval(() => {
+        if (!document.hidden) {
+          refreshDashboard(true);
+        }
+      }, 15000);
+    };
+
+    const handleLogout = async (notify = true) => {
+      try {
+        if (notify && adminToken) {
+          await authFetch('/admin/auth/logout', { method: 'POST' });
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+
+      adminToken = '';
+      localStorage.removeItem('dinkAdminToken');
+      clearInterval(refreshTimer);
+      dashboardView.hidden = true;
+      servicesView.hidden = true;
+      loginView.hidden = false;
+      currentAdminPage = 'dashboard';
+      localStorage.setItem('dinkAdminPage', currentAdminPage);
+      window.location.hash = 'dashboard';
+      if (notify) {
+        showToast('Signed out.');
+      }
+    };
+
+    const handleLogin = async (event) => {
+      event.preventDefault();
+
+      setApiUrl(apiUrlInput.value.trim());
+      loginButton.disabled = true;
+
+      try {
+        const response = await fetch(`${API_URL}/admin/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('adminUsername').value.trim(),
+            password: document.getElementById('adminPassword').value
+          })
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to sign in');
+        }
+
+        adminToken = data.token;
+        localStorage.setItem('dinkAdminToken', adminToken);
+        loginView.hidden = true;
+        apiLabel.textContent = API_URL;
+        servicesApiLabel.textContent = API_URL;
+        document.getElementById('adminPassword').value = '';
+        setAdminPage(currentAdminPage);
+        showToast('Admin signed in.');
+        await refreshDashboard();
+        startAutoRefresh();
+      } catch (error) {
+        showToast(error.message || 'Unable to sign in.', 'error');
+      } finally {
+        loginButton.disabled = false;
+      }
+    };
+
+    window.updateOrder = async (orderId, payload, successMessage) => {
+      try {
+        await authFetch(`/admin/orders/${orderId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        showToast(successMessage);
+        await refreshDashboard(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to update order.', 'error');
+      }
+    };
+
+    window.cancelOrder = async (orderId) => {
+      const reason = window.prompt('Add a cancellation reason for the customer:', 'Payment not received');
+      if (reason === null) {
+        return;
+      }
+
+      const adminNote = reason.trim() || 'Cancelled by admin.';
+      await window.updateOrder(
+        orderId,
+        { status: 'cancelled', adminNote },
+        'Order cancelled and customer notified.'
+      );
+    };
+
+    window.selectRecipientForOrder = selectRecipientForOrder;
+    window.selectServiceEditor = (serviceId) => {
+      const service = allServices.find((item) => item.id === serviceId);
+      setAdminPage('services');
+      fillServiceForm(service);
+    };
+
+    loginForm.addEventListener('submit', handleLogin);
+    openServicesButton.addEventListener('click', () => setAdminPage('services'));
+    backToDashboardButton.addEventListener('click', () => setAdminPage('dashboard'));
+    refreshButton.addEventListener('click', () => refreshDashboard());
+    servicesRefreshButton.addEventListener('click', () => refreshDashboard());
+    logoutButton.addEventListener('click', () => handleLogout());
+    servicesLogoutButton.addEventListener('click', () => handleLogout());
+    newServiceButton.addEventListener('click', resetServiceForm);
+
+    searchInput.addEventListener('input', (event) => {
+      searchQuery = event.target.value.trim().toLowerCase();
+      renderOrders();
+    });
+
+    document.querySelectorAll('#statusTabs .tab').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('#statusTabs .tab').forEach((tab) => tab.classList.remove('active'));
+        button.classList.add('active');
+        activeFilter = button.dataset.filter;
+        renderOrders();
+      });
+    });
+
+    composerForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const title = messageTitle.value.trim();
+      const message = messageBody.value.trim();
+      const userId = recipientSelect.value || 'all';
+
+      if (!title || !message) {
+        showToast('Title and message are required.', 'error');
+        return;
+      }
+
+      const sendButton = document.getElementById('sendButton');
+      sendButton.disabled = true;
+
+      try {
+        await authFetch('/admin/broadcast', {
+          method: 'POST',
+          body: JSON.stringify({ userId, title, message })
+        });
+
+        messageTitle.value = '';
+        messageBody.value = '';
+        recipientSelect.value = 'all';
+        showToast(userId === 'all' ? 'Broadcast sent to all customers.' : 'Notification sent to selected customer.');
+      } catch (error) {
+        showToast(error.message || 'Unable to send notification.', 'error');
+      } finally {
+        sendButton.disabled = false;
+      }
+    });
+
+    serviceForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const saveButton = document.getElementById('saveServiceButton');
+      saveButton.disabled = true;
+
+      try {
+        const payload = {
+          id: serviceIdField.value.trim(),
+          name: serviceNameField.value.trim(),
+          icon: serviceIconField.value.trim(),
+          fallback: serviceFallbackField.value.trim(),
+          color: serviceColorField.value.trim(),
+          category: serviceCategoryField.value.trim(),
+          popular: servicePopularField.value === 'true',
+          requiresCredentials: serviceCredentialsField.value === 'true',
+          plans: parseJsonField(servicePlansField.value, 'Plans'),
+          inputs: parseJsonField(serviceInputsField.value, 'Inputs')
+        };
+
+        const path = editingServiceId ? `/admin/services/${encodeURIComponent(editingServiceId)}` : '/admin/services';
+        const method = editingServiceId ? 'PUT' : 'POST';
+        const response = await authFetch(path, {
+          method,
+          body: JSON.stringify(payload)
+        });
+
+        showToast(editingServiceId ? 'Service updated.' : 'Service created.');
+        editingServiceId = response.service?.id || payload.id;
+        await refreshDashboard(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to save service.', 'error');
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
+    deleteServiceButton.addEventListener('click', async () => {
+      if (!editingServiceId) {
+        return;
+      }
+
+      const confirmed = window.confirm(`Delete ${editingServiceId}? This removes the service from the live mini app catalog.`);
+      if (!confirmed) {
+        return;
+      }
+
+      deleteServiceButton.disabled = true;
+
+      try {
+        await authFetch(`/admin/services/${encodeURIComponent(editingServiceId)}`, {
+          method: 'DELETE'
+        });
+        showToast('Service deleted.');
+        resetServiceForm();
+        await refreshDashboard(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to delete service.', 'error');
+      } finally {
+        updateServiceActionState();
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && adminToken) {
+        refreshDashboard(true);
+      }
+    });
+
+    if (adminToken) {
+      loginView.hidden = true;
+      setAdminPage(currentAdminPage);
+      apiLabel.textContent = API_URL;
+      servicesApiLabel.textContent = API_URL;
+      refreshDashboard();
+      startAutoRefresh();
+    } else {
+      setAdminPage('dashboard');
+      resetServiceForm();
+    }
+  </script>
+</body>
+</html>
