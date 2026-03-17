@@ -249,6 +249,57 @@ const getSafeCheckoutEmail = (user) => {
   return `customer-${String(user?._id || Date.now())}@gmail.com`;
 };
 
+const normalizePhoneNumber = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  if (raw.startsWith('tg-')) {
+    return raw;
+  }
+
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+
+  if (digits.startsWith('251')) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith('09') && digits.length === 10) {
+    return `+251${digits.slice(1)}`;
+  }
+
+  if (digits.startsWith('9') && digits.length === 9) {
+    return `+251${digits}`;
+  }
+
+  if (raw.startsWith('+')) {
+    return `+${digits}`;
+  }
+
+  if (digits.length >= 8 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+
+  return raw;
+};
+
+const isValidPhoneNumber = (value = '', { allowBlank = false, allowTelegram = false } = {}) => {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return allowBlank;
+  }
+
+  if (raw.startsWith('tg-')) {
+    return allowTelegram && /^tg-\d+$/.test(raw);
+  }
+
+  return /^\+\d{8,15}$/.test(normalizePhoneNumber(raw));
+};
+
 const isValidEmailAddress = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim().toLowerCase());
 
 const normalizeMessage = (value, fallback) => {
@@ -841,6 +892,7 @@ app.get('/api/test', (req, res) => {
 app.post('/api/auth/register', async (req, res, next) => {
   try {
     const { fullName, email, phone, password } = req.body;
+    const normalizedPhone = normalizePhoneNumber(phone);
 
     if (!fullName || !email || !phone || !password) {
       return res.status(400).json({ success: false, message: 'All fields are required' });
@@ -850,8 +902,12 @@ app.post('/api/auth/register', async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
     }
 
+    if (!isValidPhoneNumber(normalizedPhone)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid phone number like +2519XXXXXXXX' });
+    }
+
     const existingUser = await User.findOne({
-      $or: [{ email: email.toLowerCase() }, { phone }]
+      $or: [{ email: email.toLowerCase() }, { phone: normalizedPhone }]
     });
 
     if (existingUser) {
@@ -861,7 +917,7 @@ app.post('/api/auth/register', async (req, res, next) => {
     const user = await User.create({
       fullName,
       email: email.toLowerCase(),
-      phone,
+      phone: normalizedPhone,
       password: hashPassword(password)
     });
 
@@ -989,6 +1045,7 @@ app.put('/api/user/profile', requireUser, async (req, res, next) => {
   try {
     const nextFullName = String(req.body?.fullName || '').trim();
     const nextEmail = String(req.body?.email || '').trim().toLowerCase();
+    const nextPhone = normalizePhoneNumber(req.body?.phone || '');
     const currentPassword = String(req.body?.currentPassword || '');
     const newPassword = String(req.body?.newPassword || '');
 
@@ -998,6 +1055,10 @@ app.put('/api/user/profile', requireUser, async (req, res, next) => {
 
     if (!isValidEmailAddress(nextEmail)) {
       return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
+    }
+
+    if (!isValidPhoneNumber(nextPhone, { allowBlank: true })) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid phone number like +2519XXXXXXXX' });
     }
 
     const user = await User.findById(req.user._id);
@@ -1014,8 +1075,20 @@ app.put('/api/user/profile', requireUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'That email is already in use' });
     }
 
+    if (nextPhone) {
+      const phoneOwner = await User.findOne({
+        _id: { $ne: user._id },
+        phone: nextPhone
+      }).lean();
+
+      if (phoneOwner) {
+        return res.status(400).json({ success: false, message: 'That phone number is already in use' });
+      }
+    }
+
     user.fullName = nextFullName;
     user.email = nextEmail;
+    user.phone = nextPhone || undefined;
 
     if (newPassword) {
       if (newPassword.length < 6) {
@@ -1035,7 +1108,8 @@ app.put('/api/user/profile', requireUser, async (req, res, next) => {
       {
         $set: {
           'user.fullName': user.fullName,
-          'user.email': user.email
+          'user.email': user.email,
+          'user.phone': user.phone
         }
       }
     );

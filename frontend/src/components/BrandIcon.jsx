@@ -1,14 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { getServiceIconCandidates, warnMissingServiceIcon } from '../utils/serviceIcon';
 
 const BrandIcon = ({ service, alt, imgStyle, fallbackStyle }) => {
-  const [failed, setFailed] = useState(false);
+  const [attemptIndex, setAttemptIndex] = useState(0);
   const fallback = service?.fallback || service?.name?.charAt(0) || 'D';
+  const iconCandidates = useMemo(() => getServiceIconCandidates(service), [service]);
 
   useEffect(() => {
-    setFailed(false);
-  }, [service?.icon, service?.name]);
+    setAttemptIndex(0);
+  }, [service?.icon, service?.name, service?.id]);
 
-  if (failed || !service?.icon) {
+  const activeIcon = iconCandidates[attemptIndex];
+  const showFallback = !activeIcon;
+
+  if (showFallback) {
+    if (iconCandidates.length > 0) {
+      warnMissingServiceIcon(service, iconCandidates);
+    }
+
     return (
       <span
         aria-hidden="true"
@@ -31,7 +40,7 @@ const BrandIcon = ({ service, alt, imgStyle, fallbackStyle }) => {
 
   return (
     <img
-      src={service.icon}
+      src={activeIcon}
       alt={alt || service?.name || 'Service'}
       style={{
         width: '100%',
@@ -40,7 +49,16 @@ const BrandIcon = ({ service, alt, imgStyle, fallbackStyle }) => {
         display: 'block',
         ...imgStyle
       }}
-      onError={() => setFailed(true)}
+      onError={() => {
+        setAttemptIndex((current) => {
+          if (current < iconCandidates.length - 1) {
+            return current + 1;
+          }
+
+          warnMissingServiceIcon(service, iconCandidates);
+          return iconCandidates.length;
+        });
+      }}
     />
   );
 };

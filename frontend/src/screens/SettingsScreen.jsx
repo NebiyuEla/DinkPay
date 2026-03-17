@@ -1,19 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { formatPhoneInput, isValidPhoneNumber } from '../utils/phone';
 
 const SettingsScreen = ({ user, isLoading, onBack, onSave }) => {
+  const visiblePhone = user?.phone && !String(user.phone).startsWith('tg-') ? user.phone : '';
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
     email: user?.email || '',
+    phone: visiblePhone,
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
 
   useEffect(() => {
+    const nextVisiblePhone = user?.phone && !String(user.phone).startsWith('tg-') ? user.phone : '';
     setFormData({
       fullName: user?.fullName || '',
       email: user?.email || '',
+      phone: nextVisiblePhone,
       currentPassword: '',
       newPassword: '',
       confirmPassword: ''
@@ -28,6 +33,11 @@ const SettingsScreen = ({ user, isLoading, onBack, onSave }) => {
       return;
     }
 
+    if (!isValidPhoneNumber(formData.phone, { allowBlank: true })) {
+      alert('Please enter a valid phone number like +2519XXXXXXXX.');
+      return;
+    }
+
     if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
       alert('New password and confirmation do not match.');
       return;
@@ -36,6 +46,7 @@ const SettingsScreen = ({ user, isLoading, onBack, onSave }) => {
     onSave({
       fullName: formData.fullName.trim(),
       email: formData.email.trim(),
+      phone: formatPhoneInput(formData.phone),
       currentPassword: formData.currentPassword,
       newPassword: formData.newPassword
     });
@@ -102,6 +113,22 @@ const SettingsScreen = ({ user, isLoading, onBack, onSave }) => {
 
           <div>
             <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
+              Phone
+            </label>
+            <input
+              type="tel"
+              className="input-field"
+              value={formData.phone}
+              onChange={(event) => setFormData((current) => ({ ...current, phone: event.target.value }))}
+              onBlur={(event) =>
+                setFormData((current) => ({ ...current, phone: formatPhoneInput(event.target.value) }))
+              }
+              placeholder="+2519XXXXXXXX"
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>
               Current password
             </label>
             <input
@@ -152,7 +179,7 @@ const SettingsScreen = ({ user, isLoading, onBack, onSave }) => {
             fontSize: '13px'
           }}
         >
-          Keep your email current so payment receipts and support follow-ups reach the right place.
+          Keep your email and phone current so payment receipts, support follow-ups, and service delivery reach the right place.
         </div>
 
         <button type="submit" className="primary-button" disabled={isLoading}>

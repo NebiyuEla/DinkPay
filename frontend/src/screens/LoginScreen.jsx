@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { formatPhoneInput, isValidPhoneNumber } from '../utils/phone';
 
 const LoginScreen = ({ onLogin, onSignup, onTelegramLogin, isLoading }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,12 +14,12 @@ const LoginScreen = ({ onLogin, onSignup, onTelegramLogin, isLoading }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    if (!isLogin && (!formData.phone || formData.phone.length < 10)) {
-      alert('Please enter a valid phone number');
+
+    if (!isLogin && !isValidPhoneNumber(formData.phone)) {
+      alert('Please enter a valid phone number like +2519XXXXXXXX');
       return;
     }
-    
+
     if (isLogin) {
       onLogin({
         email: formData.email,
@@ -110,6 +111,7 @@ const LoginScreen = ({ onLogin, onSignup, onTelegramLogin, isLoading }) => {
               className="input-field with-icon"
               value={formData.phone}
               onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              onBlur={(e) => setFormData({...formData, phone: formatPhoneInput(e.target.value)})}
               required={!isLogin}
             />
           </div>

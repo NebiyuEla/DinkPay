@@ -16,6 +16,7 @@ const ProfileScreen = ({
   const totalSpent = orders?.reduce((sum, order) => sum + (order.totalAmount || order.amount || 0), 0) || 0;
   const activeOrders =
     orders?.filter((order) => order.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(order.status)).length || 0;
+  const visiblePhone = user?.phone && !String(user.phone).startsWith('tg-') ? user.phone : '';
 
   const menuItems = [
     { icon: 'fa-shopping-bag', label: 'My Orders', onClick: onOrdersClick },
@@ -60,6 +61,11 @@ const ProfileScreen = ({
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>
           {user?.email || 'user@gmail.com'}
         </p>
+        {visiblePhone ? (
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>
+            {visiblePhone}
+          </p>
+        ) : null}
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.36)', margin: 0 }}>
           {user?.telegramUsername ? `@${String(user.telegramUsername).replace(/^@/, '')}` : 'DINK Pay customer'}
         </p>
