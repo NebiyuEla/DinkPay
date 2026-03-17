@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import BrandIcon from '../components/BrandIcon';
 import { buildServiceSurface } from '../utils/serviceSurface';
+import { formatEtb } from '../utils/format';
 
 const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
   const [selectedPlanIndex, setSelectedPlanIndex] = useState(0);
@@ -142,7 +143,7 @@ const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
                     </span>
                   ) : null}
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#49FA84' }}>Pay {plan.price} ETB</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#49FA84' }}>Pay {formatEtb(plan.price)}</div>
               </motion.button>
             );
           })}

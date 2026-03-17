@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { BOT_VERSION, SUPPORT_PHONE, SUPPORT_TELEGRAM, TERMS_VERSION } from '../data/legal';
+import { formatEtb } from '../utils/format';
 
 const ProfileScreen = ({
   user,
@@ -13,7 +14,10 @@ const ProfileScreen = ({
   onTermsClick
 }) => {
   const totalOrders = orders?.length || 0;
-  const totalSpent = orders?.reduce((sum, order) => sum + (order.totalAmount || order.amount || 0), 0) || 0;
+  const totalSpent =
+    orders
+      ?.filter((order) => order.paymentStatus === 'paid')
+      .reduce((sum, order) => sum + (order.totalAmount || order.amount || 0), 0) || 0;
   const activeOrders =
     orders?.filter((order) => order.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(order.status)).length || 0;
   const visiblePhone = user?.phone && !String(user.phone).startsWith('tg-') ? user.phone : '';
@@ -77,7 +81,7 @@ const ProfileScreen = ({
           <span className="stat-label">Orders</span>
         </div>
         <div className="glass-card stat-card">
-          <span className="stat-value">{totalSpent} ETB</span>
+          <span className="stat-value">{formatEtb(totalSpent)}</span>
           <span className="stat-label">Spent</span>
         </div>
         <div className="glass-card stat-card">

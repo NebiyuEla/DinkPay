@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import BrandIcon from '../components/BrandIcon';
+import { formatEtb } from '../utils/format';
 
 const ConfirmationScreen = ({ order, onHome }) => {
   const [countdown, setCountdown] = useState(8);
@@ -101,7 +102,7 @@ const ConfirmationScreen = ({ order, onHome }) => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <span style={{ color: 'rgba(255,255,255,0.54)' }}>Amount</span>
-            <strong style={{ color: '#49FA84' }}>{order?.totalAmount || plan.price || 0} ETB</strong>
+            <strong style={{ color: '#49FA84' }}>{formatEtb(order?.totalAmount || plan.price || 0)}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <span style={{ color: 'rgba(255,255,255,0.54)' }}>Payment</span>

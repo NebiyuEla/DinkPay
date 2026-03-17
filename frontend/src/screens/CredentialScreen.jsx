@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import BrandIcon from '../components/BrandIcon';
 import { buildServiceSurface } from '../utils/serviceSurface';
+import { formatEtb } from '../utils/format';
 
 const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
   const [credentials, setCredentials] = useState({});
@@ -96,7 +97,7 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
               {plan.name} plan
             </p>
             <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 700, color: '#49FA84' }}>
-              Pay {plan.price} ETB
+              Pay {formatEtb(plan.price)}
             </div>
           </div>
         </div>
@@ -174,7 +175,7 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
             <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>Amount</span>
-            <strong style={{ color: '#49FA84' }}>{plan.price} ETB</strong>
+            <strong style={{ color: '#49FA84' }}>{formatEtb(plan.price)}</strong>
           </div>
         </div>
 
@@ -183,7 +184,7 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
           className="primary-button"
           disabled={!isFormValid()}
         >
-          Continue to Pay {plan.price} ETB
+          Continue to Pay {formatEtb(plan.price)}
         </button>
       </form>
     </motion.div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { formatEtb } from '../utils/format';
 
 const filters = [
   { key: 'active', label: 'Active' },
@@ -116,7 +117,7 @@ const OrdersScreen = ({ orders, onBack }) => {
               >
                 <div style={{ padding: '12px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)' }}>
                   <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginBottom: '6px' }}>Amount</div>
-                  <strong style={{ color: '#49FA84' }}>{order.totalAmount || order.amount} ETB</strong>
+                  <strong style={{ color: '#49FA84' }}>{formatEtb(order.totalAmount || order.amount)}</strong>
                 </div>
                 <div style={{ padding: '12px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)' }}>
                   <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginBottom: '6px' }}>Admin Status</div>

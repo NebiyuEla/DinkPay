@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { API_URL } from '../config';
 import BrandIcon from '../components/BrandIcon';
 import { buildServiceSurface } from '../utils/serviceSurface';
+import { formatEtb } from '../utils/format';
 
 const normalizeMessage = (value, fallback) => {
   if (typeof value === 'string' && value.trim()) {
@@ -154,7 +155,7 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
               {plan.name} plan
             </p>
             <div style={{ marginTop: '10px', color: '#49FA84', fontSize: '16px', fontWeight: 800 }}>
-              Pay {plan.price} ETB
+              Pay {formatEtb(plan.price)}
             </div>
           </div>
         </div>
@@ -192,7 +193,7 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
             Opening secure checkout...
           </span>
         ) : (
-          `Pay ${plan.price} ETB`
+          `Pay ${formatEtb(plan.price)}`
         )}
       </button>
 
