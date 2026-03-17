@@ -17,7 +17,6 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use('/admin', express.static(path.join(workspaceRoot, 'admin')));
-app.use('/uploads', express.static(UPLOADS_DIR));
 
 const PORT = Number(process.env.PORT || 5000);
 const CHAPA_API_BASE = 'https://api.chapa.co/v1';
@@ -32,6 +31,7 @@ const BOT_SCRIPT_PATH = path.join(workspaceRoot, 'DinkPayment.py');
 const SERVICES_FILE_PATH = path.join(workspaceRoot, 'backend', 'data', 'services.json');
 const UPLOADS_DIR = path.join(workspaceRoot, 'backend', 'uploads');
 const CURRENT_TERMS_VERSION = 'march-2026';
+app.use('/uploads', express.static(UPLOADS_DIR));
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || (() => {
   try {
     const botSource = fs.readFileSync(BOT_SCRIPT_PATH, 'utf8');
