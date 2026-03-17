@@ -17,6 +17,7 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use('/admin', express.static(path.join(workspaceRoot, 'admin')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 const PORT = Number(process.env.PORT || 5000);
 const CHAPA_API_BASE = 'https://api.chapa.co/v1';
@@ -29,6 +30,8 @@ const BOT_SYNC_TOKEN = process.env.BOT_SYNC_TOKEN || 'local-dink-bot-sync';
 const ENABLE_DIRECT_TELEGRAM_PUSH = process.env.DIRECT_TELEGRAM_PUSH !== 'false';
 const BOT_SCRIPT_PATH = path.join(workspaceRoot, 'DinkPayment.py');
 const SERVICES_FILE_PATH = path.join(workspaceRoot, 'backend', 'data', 'services.json');
+const UPLOADS_DIR = path.join(workspaceRoot, 'backend', 'uploads');
+const CURRENT_TERMS_VERSION = 'march-2026';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || (() => {
   try {
     const botSource = fs.readFileSync(BOT_SCRIPT_PATH, 'utf8');
@@ -48,6 +51,7 @@ const paymentSyncCache = new Map();
 
 const allowedOrderStatuses = new Set(['pending', 'processing', 'completed', 'cancelled']);
 const allowedPaymentStatuses = new Set(['pending', 'paid', 'failed', 'refunded']);
+const allowedFormatStyles = new Set(['plain', 'bold', 'italic', 'code']);
 
 const userSchema = new mongoose.Schema(
   {
@@ -56,7 +60,9 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, unique: true, sparse: true, trim: true },
     password: { type: String, required: true },
     telegramId: { type: String, unique: true, sparse: true },
-    telegramUsername: String
+    telegramUsername: String,
+    termsAcceptedVersion: String,
+    termsAcceptedAt: Date
   },
   { timestamps: true }
 );
@@ -108,6 +114,13 @@ const notificationSchema = new mongoose.Schema(
     title: { type: String, required: true },
     message: { type: String, required: true },
     type: { type: String, default: 'info' },
+    formatStyle: { type: String, default: 'plain' },
+    attachment: {
+      url: String,
+      kind: String,
+      name: String,
+      mimeType: String
+    },
     read: { type: Boolean, default: false }
   },
   { timestamps: true }
@@ -235,6 +248,8 @@ const getSafeCheckoutEmail = (user) => {
 
   return `customer-${String(user?._id || Date.now())}@gmail.com`;
 };
+
+const isValidEmailAddress = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim().toLowerCase());
 
 const normalizeMessage = (value, fallback) => {
   if (typeof value === 'string' && value.trim()) {
@@ -373,28 +388,170 @@ const sanitizeServicePayload = (payload = {}) => {
   };
 };
 
-const formatTelegramNotification = (title, message, type = 'info') => {
-  const prefix = type === 'success' ? '✅' : type === 'error' ? '⚠️' : '🔔';
-  return `${prefix} ${title}\n\n${message}`;
+const normalizeFormatStyle = (value) =>
+  allowedFormatStyles.has(String(value || '').trim().toLowerCase())
+    ? String(value).trim().toLowerCase()
+    : 'plain';
+
+const sanitizeNotificationAttachment = (attachment) => {
+  if (!attachment?.url) {
+    return undefined;
+  }
+
+  return {
+    url: String(attachment.url),
+    kind: String(attachment.kind || 'file'),
+    name: String(attachment.name || 'attachment'),
+    mimeType: String(attachment.mimeType || 'application/octet-stream')
+  };
 };
 
-const sendTelegramBotMessage = async ({ telegramId, title, message, type = 'info' }) => {
+const escapeTelegramHtml = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const formatTelegramNotification = ({ title, message, type = 'info', formatStyle = 'plain' }) => {
+  const prefix = type === 'success' ? '✅' : type === 'error' ? '⚠️' : '🔔';
+  const safeTitle = escapeTelegramHtml(title || 'DINK Pay');
+  const safeMessage = escapeTelegramHtml(message || '');
+  const normalizedStyle = normalizeFormatStyle(formatStyle);
+
+  if (normalizedStyle === 'bold') {
+    return `<b>${prefix} ${safeTitle}</b>\n\n<b>${safeMessage}</b>`;
+  }
+
+  if (normalizedStyle === 'italic') {
+    return `<b>${prefix} ${safeTitle}</b>\n\n<i>${safeMessage}</i>`;
+  }
+
+  if (normalizedStyle === 'code') {
+    return `<b>${prefix} ${safeTitle}</b>\n\n<pre>${safeMessage}</pre>`;
+  }
+
+  return `<b>${prefix} ${safeTitle}</b>\n\n${safeMessage}`;
+};
+
+const detectAttachmentKind = (mimeType = '', fileName = '') => {
+  const normalizedMime = String(mimeType || '').toLowerCase();
+  const normalizedName = String(fileName || '').toLowerCase();
+
+  if (normalizedMime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/.test(normalizedName)) {
+    return 'photo';
+  }
+
+  if (normalizedMime.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/.test(normalizedName)) {
+    return 'audio';
+  }
+
+  return 'file';
+};
+
+const saveAdminAttachment = ({ attachment, baseUrl }) => {
+  if (!attachment?.dataUrl) {
+    return undefined;
+  }
+
+  const match = String(attachment.dataUrl).match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error('Attachment format is invalid');
+  }
+
+  const mimeType = String(attachment.mimeType || match[1] || 'application/octet-stream');
+  const buffer = Buffer.from(match[2], 'base64');
+  if (!buffer.length) {
+    throw new Error('Attachment is empty');
+  }
+
+  if (buffer.length > 8 * 1024 * 1024) {
+    throw new Error('Attachment must be smaller than 8 MB');
+  }
+
+  const originalName = String(attachment.name || 'attachment').trim() || 'attachment';
+  const safeBaseName = originalName.replace(/[^a-zA-Z0-9._-]+/g, '-');
+  const extension = path.extname(safeBaseName) || (mimeType.includes('/') ? `.${mimeType.split('/')[1].replace(/[^a-z0-9]+/gi, '')}` : '');
+  const finalName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${extension || ''}`;
+  const uploadDir = path.join(UPLOADS_DIR, 'admin');
+
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const filePath = path.join(uploadDir, finalName);
+  fs.writeFileSync(filePath, buffer);
+
+  const relativeUrl = `/uploads/admin/${finalName}`;
+  return {
+    url: `${baseUrl.replace(/\/$/, '')}${relativeUrl}`,
+    relativeUrl,
+    path: filePath,
+    kind: detectAttachmentKind(mimeType, originalName),
+    name: safeBaseName,
+    mimeType
+  };
+};
+
+const sendTelegramBotMessage = async ({
+  telegramId,
+  title,
+  message,
+  type = 'info',
+  formatStyle = 'plain',
+  attachment
+}) => {
   if (!TELEGRAM_BOT_TOKEN || !telegramId || !title || !message) {
     return false;
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        chat_id: String(telegramId),
-        text: formatTelegramNotification(title, message, type),
-        disable_web_page_preview: true
-      })
-    });
+    const formattedMessage = formatTelegramNotification({ title, message, type, formatStyle });
+    let response;
+
+    if (attachment?.kind && (attachment?.path || attachment?.url)) {
+      const form = new FormData();
+      const method =
+        attachment.kind === 'photo'
+          ? 'sendPhoto'
+          : attachment.kind === 'audio'
+            ? 'sendAudio'
+            : 'sendDocument';
+      const field =
+        attachment.kind === 'photo'
+          ? 'photo'
+          : attachment.kind === 'audio'
+            ? 'audio'
+            : 'document';
+
+      form.set('chat_id', String(telegramId));
+      if (attachment.path && fs.existsSync(attachment.path)) {
+        const fileBuffer = fs.readFileSync(attachment.path);
+        form.set(
+          field,
+          new Blob([fileBuffer], { type: attachment.mimeType || 'application/octet-stream' }),
+          attachment.name || 'attachment'
+        );
+      } else if (attachment.url) {
+        form.set(field, attachment.url);
+      }
+      form.set('caption', formattedMessage);
+      form.set('parse_mode', 'HTML');
+
+      response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+        method: 'POST',
+        body: form
+      });
+    } else {
+      response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          chat_id: String(telegramId),
+          text: formattedMessage,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true
+        })
+      });
+    }
 
     return response.ok;
   } catch (error) {
@@ -403,14 +560,26 @@ const sendTelegramBotMessage = async ({ telegramId, title, message, type = 'info
   }
 };
 
-const createNotification = async ({ userId, title, message, type = 'info' }) => {
+const createNotification = async ({
+  userId,
+  title,
+  message,
+  type = 'info',
+  formatStyle = 'plain',
+  attachment
+}) => {
   if (!userId) return null;
+
+  const storedAttachment = sanitizeNotificationAttachment(attachment);
+  const normalizedStyle = normalizeFormatStyle(formatStyle);
 
   const notification = await Notification.create({
     userId,
     title,
     message,
     type,
+    formatStyle: normalizedStyle,
+    ...(storedAttachment ? { attachment: storedAttachment } : {}),
     read: false
   });
 
@@ -422,17 +591,29 @@ const createNotification = async ({ userId, title, message, type = 'info' }) => 
       telegramId: recipient.telegramId,
       title,
       message,
-      type
+      type,
+      formatStyle: normalizedStyle,
+      attachment
     });
   }
 
   return notification;
 };
 
-const createBulkNotifications = async ({ userIds, title, message, type = 'info' }) => {
+const createBulkNotifications = async ({
+  userIds,
+  title,
+  message,
+  type = 'info',
+  formatStyle = 'plain',
+  attachment
+}) => {
   if (!Array.isArray(userIds) || userIds.length === 0) {
     return;
   }
+
+  const storedAttachment = sanitizeNotificationAttachment(attachment);
+  const normalizedStyle = normalizeFormatStyle(formatStyle);
 
   await Notification.insertMany(
     userIds.map((userId) => ({
@@ -440,6 +621,8 @@ const createBulkNotifications = async ({ userIds, title, message, type = 'info' 
       title,
       message,
       type,
+      formatStyle: normalizedStyle,
+      ...(storedAttachment ? { attachment: storedAttachment } : {}),
       read: false
     }))
   );
@@ -458,7 +641,9 @@ const createBulkNotifications = async ({ userIds, title, message, type = 'info' 
           telegramId: user.telegramId,
           title,
           message,
-          type
+          type,
+          formatStyle: normalizedStyle,
+          attachment
         })
       )
     );
@@ -473,7 +658,11 @@ const getPublicUser = async (userId) => {
     id: user._id,
     fullName: user.fullName,
     email: user.email,
-    phone: user.phone
+    phone: user.phone,
+    telegramId: user.telegramId,
+    telegramUsername: user.telegramUsername,
+    termsAcceptedVersion: user.termsAcceptedVersion,
+    termsAcceptedAt: user.termsAcceptedAt
   };
 };
 
@@ -657,6 +846,10 @@ app.post('/api/auth/register', async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'All fields are required' });
     }
 
+    if (!isValidEmailAddress(email)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
+    }
+
     const existingUser = await User.findOne({
       $or: [{ email: email.toLowerCase() }, { phone }]
     });
@@ -759,6 +952,97 @@ app.post('/api/auth/telegram', async (req, res, next) => {
         orders: orders.map(serializeOrder)
       },
       token: createUserToken(user._id)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/user/terms', requireUser, async (req, res, next) => {
+  try {
+    const accepted = req.body?.accepted === true;
+    const version = String(req.body?.version || CURRENT_TERMS_VERSION).trim().toLowerCase() || CURRENT_TERMS_VERSION;
+
+    if (!accepted) {
+      return res.status(400).json({ success: false, message: 'You must accept the terms to continue' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.termsAcceptedVersion = version;
+    user.termsAcceptedAt = new Date();
+    await user.save();
+
+    res.json({
+      success: true,
+      user: await getPublicUser(user._id)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/user/profile', requireUser, async (req, res, next) => {
+  try {
+    const nextFullName = String(req.body?.fullName || '').trim();
+    const nextEmail = String(req.body?.email || '').trim().toLowerCase();
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+
+    if (!nextFullName || !nextEmail) {
+      return res.status(400).json({ success: false, message: 'Username and email are required' });
+    }
+
+    if (!isValidEmailAddress(nextEmail)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const existingUser = await User.findOne({
+      _id: { $ne: user._id },
+      email: nextEmail
+    }).lean();
+
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'That email is already in use' });
+    }
+
+    user.fullName = nextFullName;
+    user.email = nextEmail;
+
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+      }
+
+      if (!user.telegramId && !verifyPassword(currentPassword, user.password)) {
+        return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+      }
+
+      user.password = hashPassword(newPassword);
+    }
+
+    await user.save();
+    await Order.updateMany(
+      { userId: user._id },
+      {
+        $set: {
+          'user.fullName': user.fullName,
+          'user.email': user.email
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      user: await getPublicUser(user._id)
     });
   } catch (error) {
     next(error);
@@ -1323,7 +1607,11 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req, res, next) => {
 
 app.post('/api/admin/broadcast', requireAdmin, async (req, res, next) => {
   try {
-    const { userId, title, message, type = 'info' } = req.body;
+    const { userId, title, message, type = 'info', formatStyle = 'plain' } = req.body;
+    const attachment = saveAdminAttachment({
+      attachment: req.body?.attachment,
+      baseUrl: getBackendBaseUrl(req)
+    });
 
     if (!title || !message) {
       return res.status(400).json({ success: false, message: 'Title and message are required' });
@@ -1335,14 +1623,18 @@ app.post('/api/admin/broadcast', requireAdmin, async (req, res, next) => {
         userIds: users.map((user) => user._id),
         title,
         message,
-        type
+        type,
+        formatStyle,
+        attachment
       });
     } else {
       await createNotification({
         userId,
         title,
         message,
-        type
+        type,
+        formatStyle,
+        attachment
       });
     }
 

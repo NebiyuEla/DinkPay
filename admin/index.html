@@ -685,6 +685,22 @@
       line-height: 1.6;
     }
 
+    .composer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .attachment-preview {
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
     .empty-state,
     .loading-state {
       padding: 48px 22px;
@@ -764,7 +780,8 @@
       }
 
       .service-layout,
-      .service-editor-grid {
+      .service-editor-grid,
+      .composer-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -840,7 +857,7 @@
           <div class="stat-value" id="statTotal">0</div>
         </article>
         <article class="stat-card">
-          <div class="stat-label">Payment Check</div>
+          <div class="stat-label">Not Paid / Check</div>
           <div class="stat-value" id="statUnpaid">0</div>
         </article>
         <article class="stat-card">
@@ -872,7 +889,7 @@
                 </div>
                 <div class="tabs" id="statusTabs">
                   <button class="tab active" data-filter="all">All</button>
-                  <button class="tab" data-filter="unpaid">Payment Check</button>
+                  <button class="tab" data-filter="unpaid">Not Paid / Check</button>
                   <button class="tab" data-filter="paid">Paid</button>
                   <button class="tab" data-filter="processing">Processing</button>
                   <button class="tab" data-filter="completed">Completed</button>
@@ -899,6 +916,25 @@
                 <option value="all">All customers</option>
               </select>
             </div>
+            <div class="composer-grid">
+              <div>
+                <label class="field-label" for="messageType">Notification type</label>
+                <select id="messageType">
+                  <option value="info">Info</option>
+                  <option value="success">Success</option>
+                  <option value="error">Error</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="messageFormat">Text style</label>
+                <select id="messageFormat">
+                  <option value="plain">Plain</option>
+                  <option value="bold">Bold</option>
+                  <option value="italic">Italic</option>
+                  <option value="code">Code</option>
+                </select>
+              </div>
+            </div>
             <div>
               <label class="field-label" for="messageTitle">Title</label>
               <input class="field" id="messageTitle" placeholder="Payment update">
@@ -907,7 +943,12 @@
               <label class="field-label" for="messageBody">Message</label>
               <textarea id="messageBody" placeholder="Write the message customers should receive"></textarea>
             </div>
-            <div class="composer-helper" id="composerHint">Messages sent from here are stored in each customer's notification feed inside the user app.</div>
+            <div>
+              <label class="field-label" for="messageAttachment">Attachment</label>
+              <input class="field" id="messageAttachment" type="file" accept="image/*,audio/*,.pdf,.doc,.docx,.txt,.zip">
+            </div>
+            <div class="attachment-preview" id="attachmentPreview">No attachment selected.</div>
+            <div class="composer-helper" id="composerHint">Messages sent from here are stored in each customer's notification feed inside the user app and can also go straight to Telegram with the selected style and attachment.</div>
             <div class="auth-actions">
               <button class="btn btn-primary" type="submit" id="sendButton"><i class="fas fa-paper-plane"></i> Send notification</button>
             </div>
@@ -1035,6 +1076,7 @@
     let searchQuery = '';
     let refreshTimer = null;
     let editingServiceId = null;
+    let messageAttachmentPayload = null;
     let currentAdminPage = window.location.hash === '#services'
       ? 'services'
       : (localStorage.getItem('dinkAdminPage') === 'services' ? 'services' : 'dashboard');
@@ -1055,8 +1097,12 @@
     const ordersList = document.getElementById('ordersList');
     const recipientSelect = document.getElementById('recipientSelect');
     const composerForm = document.getElementById('composerForm');
+    const messageType = document.getElementById('messageType');
+    const messageFormat = document.getElementById('messageFormat');
     const messageTitle = document.getElementById('messageTitle');
     const messageBody = document.getElementById('messageBody');
+    const messageAttachment = document.getElementById('messageAttachment');
+    const attachmentPreview = document.getElementById('attachmentPreview');
     const apiLabel = document.getElementById('apiLabel');
     const lastUpdated = document.getElementById('lastUpdated');
     const servicesApiLabel = document.getElementById('servicesApiLabel');
@@ -1109,9 +1155,9 @@
     };
 
     const getPaymentLabel = (status) => {
-      if (status === 'paid') return 'paid';
-      if (status === 'failed') return 'failed';
-      if (status === 'refunded') return 'refunded';
+      if (status === 'paid') return 'payment paid';
+      if (status === 'failed') return 'payment failed';
+      if (status === 'refunded') return 'payment refunded';
       return 'payment check';
     };
 
@@ -1123,11 +1169,11 @@
     };
 
     const getStatusLabel = (order) => {
-      if (order?.status === 'cancelled') return 'cancelled';
-      if (order?.status === 'completed') return 'completed';
-      if (order?.status === 'processing') return 'processing';
-      if (order?.paymentStatus !== 'paid') return 'payment check';
-      return 'pending';
+      if (order?.status === 'cancelled') return 'delivery cancelled';
+      if (order?.status === 'completed') return 'delivery completed';
+      if (order?.status === 'processing') return 'delivery processing';
+      if (order?.paymentStatus !== 'paid') return 'awaiting payment';
+      return 'awaiting admin';
     };
 
     const formatJson = (value) => JSON.stringify(value || [], null, 2);
@@ -1221,6 +1267,25 @@
       window.setTimeout(() => toast.remove(), 3200);
     };
 
+    const readFileAsDataUrl = (file) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Unable to read the selected file.'));
+        reader.readAsDataURL(file);
+      });
+
+    const resetComposer = () => {
+      messageTitle.value = '';
+      messageBody.value = '';
+      recipientSelect.value = 'all';
+      messageType.value = 'info';
+      messageFormat.value = 'plain';
+      messageAttachment.value = '';
+      messageAttachmentPayload = null;
+      attachmentPreview.textContent = 'No attachment selected.';
+    };
+
     const setAdminPage = (page) => {
       currentAdminPage = page === 'services' ? 'services' : 'dashboard';
       localStorage.setItem('dinkAdminPage', currentAdminPage);
@@ -1235,6 +1300,25 @@
       apiLabel.textContent = API_URL;
       servicesApiLabel.textContent = API_URL;
       localStorage.setItem('dinkAdminApiUrl', API_URL);
+    };
+
+    const readApiPayload = async (response, fallbackMessage) => {
+      const contentType = response.headers.get('content-type') || '';
+
+      if (contentType.includes('application/json')) {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || fallbackMessage);
+        }
+        return data;
+      }
+
+      const text = await response.text().catch(() => '');
+      if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+        throw new Error('This admin page is pointing to a web page instead of the backend API. Use your backend URL ending with /api.');
+      }
+
+      throw new Error(fallbackMessage);
     };
 
     const authFetch = async (path, options = {}) => {
@@ -1252,12 +1336,7 @@
         throw new Error('Your admin session expired. Please sign in again.');
       }
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
-      }
-
-      return data;
+      return readApiPayload(response, 'Request failed');
     };
 
     const matchesFilter = (order) => {
@@ -1352,6 +1431,14 @@
                 <div class="metric">
                   <label>Amount</label>
                   <strong>${escapeHtml(formatMoney(order.totalAmount))}</strong>
+                </div>
+                <div class="metric">
+                  <label>Payment</label>
+                  <strong>${escapeHtml(getPaymentLabel(order.paymentStatus))}</strong>
+                </div>
+                <div class="metric">
+                  <label>Delivery</label>
+                  <strong>${escapeHtml(getStatusLabel(order))}</strong>
                 </div>
                 <div class="metric">
                   <label>Order ID</label>
@@ -1556,10 +1643,7 @@
           })
         });
 
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.message || 'Unable to sign in');
-        }
+        const data = await readApiPayload(response, 'Unable to sign in');
 
         adminToken = data.token;
         localStorage.setItem('dinkAdminToken', adminToken);
@@ -1626,6 +1710,30 @@
       renderOrders();
     });
 
+    messageAttachment.addEventListener('change', async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        messageAttachmentPayload = null;
+        attachmentPreview.textContent = 'No attachment selected.';
+        return;
+      }
+
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        messageAttachmentPayload = {
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          dataUrl
+        };
+        attachmentPreview.textContent = `${file.name} • ${Math.max(1, Math.round(file.size / 1024))} KB ready to send`;
+      } catch (error) {
+        messageAttachment.value = '';
+        messageAttachmentPayload = null;
+        attachmentPreview.textContent = 'No attachment selected.';
+        showToast(error.message || 'Unable to prepare the attachment.', 'error');
+      }
+    });
+
     document.querySelectorAll('#statusTabs .tab').forEach((button) => {
       button.addEventListener('click', () => {
         document.querySelectorAll('#statusTabs .tab').forEach((tab) => tab.classList.remove('active'));
@@ -1641,6 +1749,8 @@
       const title = messageTitle.value.trim();
       const message = messageBody.value.trim();
       const userId = recipientSelect.value || 'all';
+      const type = messageType.value || 'info';
+      const formatStyle = messageFormat.value || 'plain';
 
       if (!title || !message) {
         showToast('Title and message are required.', 'error');
@@ -1653,12 +1763,17 @@
       try {
         await authFetch('/admin/broadcast', {
           method: 'POST',
-          body: JSON.stringify({ userId, title, message })
+          body: JSON.stringify({
+            userId,
+            title,
+            message,
+            type,
+            formatStyle,
+            ...(messageAttachmentPayload ? { attachment: messageAttachmentPayload } : {})
+          })
         });
 
-        messageTitle.value = '';
-        messageBody.value = '';
-        recipientSelect.value = 'all';
+        resetComposer();
         showToast(userId === 'all' ? 'Broadcast sent to all customers.' : 'Notification sent to selected customer.');
       } catch (error) {
         showToast(error.message || 'Unable to send notification.', 'error');

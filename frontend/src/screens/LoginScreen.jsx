@@ -131,23 +131,21 @@ const LoginScreen = ({ onLogin, onSignup, onTelegramLogin, isLoading }) => {
           ></i>
         </div>
 
-        {/* Telegram Button - Primary */}
+        {/* Submit Button */}
         <button 
-          type="button" 
-          className="primary-button" 
-          style={{ 
-            marginBottom: '16px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '10px',
-            background: 'linear-gradient(135deg, #49FA84, #14E343)'
-          }}
-          onClick={onTelegramLogin}
+          type="submit" 
+          className="secondary-button"
+          style={{ marginBottom: '16px' }}
           disabled={isLoading}
         >
-          <i className="fab fa-telegram" style={{ fontSize: '18px' }}></i>
-          {isLoading ? 'Connecting...' : 'Continue with Telegram'}
+          {isLoading ? (
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <i className="fas fa-spinner fa-spin"></i>
+              Processing...
+            </span>
+          ) : (
+            isLogin ? 'Login with Gmail' : 'Sign Up with Gmail'
+          )}
         </button>
 
         {/* OR Divider */}
@@ -163,20 +161,22 @@ const LoginScreen = ({ onLogin, onSignup, onTelegramLogin, isLoading }) => {
           <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
         </div>
 
-        {/* Submit Button */}
+        {/* Telegram Button */}
         <button 
-          type="submit" 
-          className="secondary-button"
+          type="button" 
+          className="primary-button" 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            gap: '10px',
+            background: 'linear-gradient(135deg, #49FA84, #14E343)'
+          }}
+          onClick={onTelegramLogin}
           disabled={isLoading}
         >
-          {isLoading ? (
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <i className="fas fa-spinner fa-spin"></i>
-              Processing...
-            </span>
-          ) : (
-            isLogin ? 'Login with Gmail' : 'Sign Up with Gmail'
-          )}
+          <i className="fab fa-telegram" style={{ fontSize: '18px' }}></i>
+          {isLoading ? 'Connecting...' : 'Continue with Telegram'}
         </button>
       </form>
 

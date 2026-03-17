@@ -13,8 +13,11 @@ import ConfirmationScreen from './screens/ConfirmationScreen';
 import OrdersScreen from './screens/OrdersScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import TermsScreen from './screens/TermsScreen';
 import { API_URL } from './config';
 import { services as fallbackServices } from './data/services';
+import { TERMS_VERSION_KEY } from './data/legal';
 
 const normalizeUiMessage = (value, fallback) => {
   if (typeof value === 'string' && value.trim()) {
@@ -35,6 +38,29 @@ const normalizeUiMessage = (value, fallback) => {
   return fallback;
 };
 
+const readApiPayload = async (response, fallbackMessage) => {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(normalizeUiMessage(data.message, fallbackMessage));
+    }
+    return data;
+  }
+
+  const text = await response.text().catch(() => '');
+  const looksLikeHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+
+  if (looksLikeHtml) {
+    throw new Error('The app is reaching a web page instead of the API. Set VITE_API_URL to your backend /api URL.');
+  }
+
+  throw new Error(fallbackMessage);
+};
+
+const userNeedsTermsAcceptance = (userData) => userData?.termsAcceptedVersion !== TERMS_VERSION_KEY;
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState('splash');
   const [user, setUser] = useState(null);
@@ -44,8 +70,11 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [termsLoading, setTermsLoading] = useState(false);
   const [pendingCredentials, setPendingCredentials] = useState({});
   const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [termsEntryPoint, setTermsEntryPoint] = useState('auth');
 
   const bootTimeoutRef = useRef(null);
   const handledReturnRef = useRef(false);
@@ -64,12 +93,17 @@ function App() {
     }
   };
 
+  const syncStoredUser = (nextUser) => {
+    setUser(nextUser);
+    localStorage.setItem('dinkUser', JSON.stringify(nextUser));
+  };
+
   const fetchUserOrders = async (token) => {
     try {
       const response = await fetch(`${API_URL}/orders/user`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await response.json();
+      const data = await readApiPayload(response, 'Unable to load your orders right now.');
       if (data.success) {
         setOrders(data.orders);
         return data.orders;
@@ -85,7 +119,7 @@ function App() {
       const response = await fetch(`${API_URL}/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await response.json();
+      const data = await readApiPayload(response, 'Unable to load notifications right now.');
       if (data.success) {
         setNotifications(data.notifications);
         return data.notifications;
@@ -103,7 +137,7 @@ function App() {
   const loadServicesCatalog = async () => {
     try {
       const response = await fetch(`${API_URL}/services`);
-      const data = await response.json();
+      const data = await readApiPayload(response, 'Unable to load services right now.');
       if (data.success && Array.isArray(data.services) && data.services.length > 0) {
         setServicesCatalog(data.services);
       }
@@ -119,7 +153,7 @@ function App() {
       const response = await fetch(`${API_URL}/chapa/verify/${encodeURIComponent(txRef)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
-      const data = await response.json();
+      const data = await readApiPayload(response, 'Unable to verify payment right now.');
 
       await hydrateAfterAuth(token);
 
@@ -149,9 +183,8 @@ function App() {
     const bootstrap = async () => {
       const savedUser = localStorage.getItem('dinkUser');
       const savedToken = localStorage.getItem('dinkToken');
-      const txRef =
-        new URLSearchParams(window.location.search).get('tx_ref') ||
-        new URLSearchParams(window.location.search).get('trx_ref');
+      const params = new URLSearchParams(window.location.search);
+      const txRef = params.get('tx_ref') || params.get('trx_ref');
 
       await loadServicesCatalog();
 
@@ -183,6 +216,12 @@ function App() {
       if (txRef && !handledReturnRef.current) {
         handledReturnRef.current = true;
         await handleReturnedPayment(savedToken, txRef);
+        return;
+      }
+
+      if (userNeedsTermsAcceptance(userData)) {
+        setTermsEntryPoint('auth');
+        queueScreen('terms');
         return;
       }
 
@@ -222,6 +261,20 @@ function App() {
     localStorage.setItem('dinkToken', token);
   };
 
+  const finishAuthFlow = async (userData, token, includeOrdersFromPayload = true) => {
+    persistSession(userData, token);
+    if (includeOrdersFromPayload) {
+      setOrders(userData.orders || []);
+    }
+    await fetchUserNotifications(token);
+    if (userNeedsTermsAcceptance(userData)) {
+      setTermsEntryPoint('auth');
+      setCurrentScreen('terms');
+    } else {
+      setCurrentScreen('home');
+    }
+  };
+
   const handleTelegramLogin = async () => {
     setIsLoading(true);
     try {
@@ -240,12 +293,9 @@ function App() {
         })
       });
 
-      const data = await response.json();
+      const data = await readApiPayload(response, 'Unable to continue with Telegram right now.');
       if (data.success) {
-        persistSession(data.user, data.token);
-        setOrders(data.user.orders || []);
-        await fetchUserNotifications(data.token);
-        setCurrentScreen('home');
+        await finishAuthFlow(data.user, data.token, true);
       } else {
         alert(normalizeUiMessage(data.message, 'Unable to continue with Telegram.'));
       }
@@ -266,12 +316,9 @@ function App() {
         body: JSON.stringify(userData)
       });
 
-      const data = await response.json();
+      const data = await readApiPayload(response, 'Login failed.');
       if (data.success) {
-        persistSession(data.user, data.token);
-        setOrders(data.user.orders || []);
-        await fetchUserNotifications(data.token);
-        setCurrentScreen('home');
+        await finishAuthFlow(data.user, data.token, true);
       } else {
         alert(normalizeUiMessage(data.message, 'Login failed.'));
       }
@@ -292,11 +339,16 @@ function App() {
         body: JSON.stringify(userData)
       });
 
-      const data = await response.json();
+      const data = await readApiPayload(response, 'Signup failed.');
       if (data.success) {
         persistSession(data.user, data.token);
         await hydrateAfterAuth(data.token);
-        setCurrentScreen('home');
+        if (userNeedsTermsAcceptance(data.user)) {
+          setTermsEntryPoint('auth');
+          setCurrentScreen('terms');
+        } else {
+          setCurrentScreen('home');
+        }
       } else {
         alert(normalizeUiMessage(data.message, 'Signup failed.'));
       }
@@ -305,6 +357,68 @@ function App() {
       alert(normalizeUiMessage(error.message, 'Signup failed. Please try again.'));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAcceptTerms = async () => {
+    const token = localStorage.getItem('dinkToken');
+    if (!token) return;
+
+    setTermsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/user/terms`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          accepted: true,
+          version: TERMS_VERSION_KEY
+        })
+      });
+
+      const data = await readApiPayload(response, 'Unable to save your agreement right now.');
+      if (data.success && data.user) {
+        const nextUser = { ...user, ...data.user };
+        syncStoredUser(nextUser);
+        setCurrentScreen(termsEntryPoint === 'profile' ? 'profile' : 'home');
+      }
+    } catch (error) {
+      console.error('Terms acceptance error:', error);
+      alert(normalizeUiMessage(error.message, 'Unable to save your agreement right now.'));
+    } finally {
+      setTermsLoading(false);
+    }
+  };
+
+  const handleProfileSave = async (payload) => {
+    const token = localStorage.getItem('dinkToken');
+    if (!token) return;
+
+    setSettingsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/user/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await readApiPayload(response, 'Unable to save your profile right now.');
+      if (data.success && data.user) {
+        const nextUser = { ...user, ...data.user };
+        syncStoredUser(nextUser);
+        setCurrentScreen('profile');
+        alert('Profile updated successfully.');
+      }
+    } catch (error) {
+      console.error('Profile update error:', error);
+      alert(normalizeUiMessage(error.message, 'Unable to save your profile right now.'));
+    } finally {
+      setSettingsLoading(false);
     }
   };
 
@@ -363,6 +477,11 @@ function App() {
     setCurrentScreen('payment');
   };
 
+  const openTermsFromProfile = () => {
+    setTermsEntryPoint('profile');
+    setCurrentScreen('terms');
+  };
+
   const handleLogout = () => {
     setUser(null);
     setOrders([]);
@@ -371,6 +490,7 @@ function App() {
     setSelectedPlan(null);
     setPendingCredentials({});
     setConfirmedOrder(null);
+    setTermsEntryPoint('auth');
     localStorage.removeItem('dinkUser');
     localStorage.removeItem('dinkToken');
     setCurrentScreen('login');
@@ -393,6 +513,17 @@ function App() {
             onSignup={handleSignup}
             onTelegramLogin={handleTelegramLogin}
             isLoading={isLoading}
+          />
+        )}
+
+        {currentScreen === 'terms' && user && (
+          <TermsScreen
+            key="terms"
+            requireAcceptance={userNeedsTermsAcceptance(user)}
+            acceptedAt={user?.termsAcceptedAt}
+            isLoading={termsLoading}
+            onAccept={handleAcceptTerms}
+            onBack={termsEntryPoint === 'profile' && !userNeedsTermsAcceptance(user) ? () => setCurrentScreen('profile') : null}
           />
         )}
 
@@ -485,6 +616,18 @@ function App() {
             onBack={() => setCurrentScreen('home')}
             onOrdersClick={() => setCurrentScreen('orders')}
             onNotificationsClick={() => setCurrentScreen('notifications')}
+            onSettingsClick={() => setCurrentScreen('settings')}
+            onTermsClick={openTermsFromProfile}
+          />
+        )}
+
+        {currentScreen === 'settings' && user && (
+          <SettingsScreen
+            key="settings"
+            user={user}
+            isLoading={settingsLoading}
+            onBack={() => setCurrentScreen('profile')}
+            onSave={handleProfileSave}
           />
         )}
       </AnimatePresence>
