@@ -589,6 +589,162 @@
       gap: 16px;
     }
 
+    .recipient-picker {
+      display: grid;
+      gap: 10px;
+    }
+
+    .recipient-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .recipient-summary strong {
+      display: block;
+      font-size: 14px;
+    }
+
+    .recipient-summary span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .recipient-results {
+      display: grid;
+      gap: 8px;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .recipient-option {
+      width: 100%;
+      text-align: left;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      border-radius: 18px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .recipient-option.active {
+      border-color: rgba(125, 255, 180, 0.36);
+      background: rgba(125, 255, 180, 0.12);
+    }
+
+    .recipient-option strong {
+      display: block;
+      font-size: 14px;
+    }
+
+    .recipient-option span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .recipient-option i {
+      color: var(--green);
+      flex-shrink: 0;
+    }
+
+    .recipient-empty {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px dashed rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .recipient-select-hidden {
+      display: none;
+    }
+
+    .modal-backdrop[hidden] {
+      display: none;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 10, 22, 0.76);
+      backdrop-filter: blur(12px);
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      z-index: 2000;
+    }
+
+    .modal-card {
+      width: min(760px, 100%);
+      max-height: calc(100vh - 36px);
+      overflow: auto;
+      padding: 24px;
+      border-radius: 28px;
+      background: rgba(7, 20, 39, 0.96);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .modal-copy {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .modal-card textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .order-edit-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
     .service-panel-head {
       display: flex;
       gap: 16px;
@@ -781,6 +937,7 @@
 
       .service-layout,
       .service-editor-grid,
+      .modal-grid,
       .composer-grid {
         grid-template-columns: 1fr;
       }
@@ -808,7 +965,7 @@
       <div class="logo"><span>DINK</span><span>PAY</span></div>
       <div class="auth-copy">
         <h1>Admin operations that match the live payment flow</h1>
-        <p>Sign in to review paid orders and payment-check orders, inspect the submitted credentials, update processing status, and send customer notifications one by one or in bulk.</p>
+        <p>Sign in to review paid and not paid orders, inspect submitted credentials, adjust live order details, and send customer notifications one by one or in bulk.</p>
       </div>
 
       <form id="loginForm" class="auth-grid">
@@ -916,13 +1073,21 @@
           <form class="composer" id="composerForm" style="margin-top: 20px;">
             <div>
               <label class="field-label" for="recipientSearchInput">Find customer</label>
-              <input id="recipientSearchInput" placeholder="Search by customer name, email, or phone">
+              <input class="field" id="recipientSearchInput" placeholder="Search by customer name, email, or phone">
             </div>
-            <div>
+            <div class="recipient-picker">
               <label class="field-label" for="recipientSelect">Recipient</label>
-              <select id="recipientSelect">
+              <div class="recipient-summary" id="recipientSummary">
+                <div>
+                  <strong>All customers</strong>
+                  <span>Everyone in the app will receive this message.</span>
+                </div>
+                <i class="fas fa-users"></i>
+              </div>
+              <select id="recipientSelect" class="recipient-select-hidden" aria-hidden="true" tabindex="-1">
                 <option value="all">All customers</option>
               </select>
+              <div class="recipient-results" id="recipientResults"></div>
             </div>
             <div class="composer-grid">
               <div>
@@ -1067,6 +1232,82 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="orderEditorModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 class="section-title" id="orderEditorTitle">Edit order</h2>
+          <p class="modal-copy">Adjust customer details, pricing, credentials, and status without losing the original order record.</p>
+        </div>
+        <button class="btn btn-secondary" type="button" id="closeOrderEditorButton"><i class="fas fa-xmark"></i> Close</button>
+      </div>
+
+      <div class="order-edit-meta" id="orderEditorMeta"></div>
+
+      <form id="orderEditorForm">
+        <div class="modal-grid">
+          <div>
+            <label class="field-label" for="orderCustomerField">Customer name</label>
+            <input class="field" id="orderCustomerField" placeholder="Customer name">
+          </div>
+          <div>
+            <label class="field-label" for="orderEmailField">Email</label>
+            <input class="field" id="orderEmailField" placeholder="customer@gmail.com">
+          </div>
+          <div>
+            <label class="field-label" for="orderPhoneField">Phone</label>
+            <input class="field" id="orderPhoneField" placeholder="+2519XXXXXXXX">
+          </div>
+          <div>
+            <label class="field-label" for="orderServiceField">Service</label>
+            <input class="field" id="orderServiceField" placeholder="Telegram Premium">
+          </div>
+          <div>
+            <label class="field-label" for="orderPlanField">Plan</label>
+            <input class="field" id="orderPlanField" placeholder="Monthly">
+          </div>
+          <div>
+            <label class="field-label" for="orderAmountField">Amount (ETB)</label>
+            <input class="field" id="orderAmountField" placeholder="2500">
+          </div>
+          <div>
+            <label class="field-label" for="orderPaymentField">Payment</label>
+            <select class="field" id="orderPaymentField">
+              <option value="pending">Not paid</option>
+              <option value="paid">Paid</option>
+              <option value="failed">Failed</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="orderStatusField">Delivery status</label>
+            <select class="field" id="orderStatusField">
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label class="field-label" for="orderAdminNoteField">Admin note</label>
+          <textarea class="field" id="orderAdminNoteField" placeholder="Optional note shown to the customer in notifications"></textarea>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label class="field-label" for="orderCredentialsField">Credentials JSON</label>
+          <textarea class="field" id="orderCredentialsField" placeholder='{"email":"user@gmail.com","password":"secret"}'></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-secondary" type="button" id="cancelOrderEditorButton">Cancel</button>
+          <button class="btn btn-primary" type="submit" id="saveOrderButton"><i class="fas fa-floppy-disk"></i> Save order changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const inferredApiUrl = (() => {
       if (window.location.origin && window.location.origin !== 'null' && window.location.origin !== 'file://') {
@@ -1085,6 +1326,7 @@
     let recipientSearchQuery = '';
     let refreshTimer = null;
     let editingServiceId = null;
+    let editingOrderId = null;
     let messageAttachmentPayload = null;
     let currentAdminPage = window.location.hash === '#services'
       ? 'services'
@@ -1105,6 +1347,8 @@
     const searchInput = document.getElementById('searchInput');
     const recipientSearchInput = document.getElementById('recipientSearchInput');
     const ordersList = document.getElementById('ordersList');
+    const recipientSummary = document.getElementById('recipientSummary');
+    const recipientResults = document.getElementById('recipientResults');
     const recipientSelect = document.getElementById('recipientSelect');
     const composerForm = document.getElementById('composerForm');
     const messageType = document.getElementById('messageType');
@@ -1132,6 +1376,22 @@
     const serviceCredentialsField = document.getElementById('serviceCredentialsField');
     const servicePlansField = document.getElementById('servicePlansField');
     const serviceInputsField = document.getElementById('serviceInputsField');
+    const orderEditorModal = document.getElementById('orderEditorModal');
+    const orderEditorTitle = document.getElementById('orderEditorTitle');
+    const orderEditorMeta = document.getElementById('orderEditorMeta');
+    const closeOrderEditorButton = document.getElementById('closeOrderEditorButton');
+    const cancelOrderEditorButton = document.getElementById('cancelOrderEditorButton');
+    const orderEditorForm = document.getElementById('orderEditorForm');
+    const orderCustomerField = document.getElementById('orderCustomerField');
+    const orderEmailField = document.getElementById('orderEmailField');
+    const orderPhoneField = document.getElementById('orderPhoneField');
+    const orderServiceField = document.getElementById('orderServiceField');
+    const orderPlanField = document.getElementById('orderPlanField');
+    const orderAmountField = document.getElementById('orderAmountField');
+    const orderPaymentField = document.getElementById('orderPaymentField');
+    const orderStatusField = document.getElementById('orderStatusField');
+    const orderAdminNoteField = document.getElementById('orderAdminNoteField');
+    const orderCredentialsField = document.getElementById('orderCredentialsField');
 
     apiUrlInput.value = API_URL;
     document.getElementById('adminUsername').value = 'admin';
@@ -1181,11 +1441,14 @@
       if (order?.status === 'cancelled') return 'cancelled';
       if (order?.status === 'completed') return 'completed';
       if (order?.status === 'processing') return 'processing';
-      if (order?.paymentStatus !== 'paid') return 'waiting payment';
+      if (order?.paymentStatus !== 'paid') return 'not paid';
       return 'waiting admin';
     };
 
     const formatJson = (value) => JSON.stringify(value || [], null, 2);
+    const formatObjectJson = (value) => JSON.stringify(value || {}, null, 2);
+    const buildRecipientMeta = (user) => [user?.email, user?.phone].filter(Boolean).join(' • ') || 'No contact saved';
+    const findOrderById = (orderId) => allOrders.find((order) => String(order._id) === String(orderId));
 
     const updateServiceActionState = () => {
       deleteServiceButton.disabled = !editingServiceId;
@@ -1284,15 +1547,72 @@
         reader.readAsDataURL(file);
       });
 
+    const parseJsonObjectField = (value, label) => {
+      try {
+        const parsed = JSON.parse(value || '{}');
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error(`${label} must be a JSON object.`);
+        }
+        return parsed;
+      } catch (error) {
+        throw new Error(`${label} must be valid JSON.`);
+      }
+    };
+
+    const setOrderEditorOpen = (open) => {
+      orderEditorModal.hidden = !open;
+      document.body.style.overflow = open ? 'hidden' : '';
+    };
+
+    const closeOrderEditor = () => {
+      editingOrderId = null;
+      orderEditorTitle.textContent = 'Edit order';
+      orderEditorMeta.innerHTML = '';
+      orderEditorForm.reset();
+      orderCredentialsField.value = '{}';
+      orderAdminNoteField.value = '';
+      setOrderEditorOpen(false);
+    };
+
+    const openOrderEditor = (orderId) => {
+      const order = findOrderById(orderId);
+      if (!order) {
+        showToast('That order is no longer available. Refresh the dashboard and try again.', 'error');
+        return;
+      }
+
+      editingOrderId = String(order._id);
+      orderEditorTitle.textContent = `Edit ${order.orderId || 'order'}`;
+      orderEditorMeta.innerHTML = `
+        <div class="chip"><i class="fas fa-hashtag"></i><span>${escapeHtml(order.orderId || 'No order id')}</span></div>
+        <div class="chip"><i class="fas fa-receipt"></i><span>${escapeHtml(order.transactionId || 'No tx ref')}</span></div>
+        <div class="chip"><i class="fas fa-calendar"></i><span>${escapeHtml(formatDate(order.createdAt))}</span></div>
+      `;
+      orderCustomerField.value = order.user?.fullName || '';
+      orderEmailField.value = order.user?.email || '';
+      orderPhoneField.value = order.user?.phone || '';
+      orderServiceField.value = order.service?.name || '';
+      orderPlanField.value = order.plan?.name || '';
+      orderAmountField.value = Number(order.totalAmount || order.plan?.price || 0) || '';
+      orderPaymentField.value = order.paymentStatus || 'pending';
+      orderStatusField.value = order.status || 'pending';
+      orderAdminNoteField.value = order.adminNote || '';
+      orderCredentialsField.value = formatObjectJson(order.credentials);
+      setOrderEditorOpen(true);
+      orderCustomerField.focus();
+    };
+
     const resetComposer = () => {
       messageTitle.value = '';
       messageBody.value = '';
-      recipientSelect.value = 'all';
+      recipientSearchQuery = '';
+      recipientSearchInput.value = '';
       messageType.value = 'info';
       messageFormat.value = 'plain';
       messageAttachment.value = '';
       messageAttachmentPayload = null;
       attachmentPreview.textContent = 'No attachment selected.';
+      renderRecipientOptions('all');
     };
 
     const setAdminPage = (page) => {
@@ -1418,11 +1738,54 @@
           `)
           .join('');
 
-      if ([...recipientSelect.options].some((option) => option.value === String(preferredValue))) {
-        recipientSelect.value = String(preferredValue);
+      const nextValue = [...recipientSelect.options].some((option) => option.value === String(preferredValue))
+        ? String(preferredValue)
+        : 'all';
+
+      recipientSelect.value = nextValue;
+
+      if (nextValue === 'all') {
+        recipientSummary.innerHTML = `
+          <div>
+            <strong>All customers</strong>
+            <span>${allUsers.length.toLocaleString()} registered user(s) will receive this notification.</span>
+          </div>
+          <i class="fas fa-users"></i>
+        `;
       } else {
-        recipientSelect.value = 'all';
+        const activeUser = allUsers.find((user) => String(user._id) === nextValue);
+        recipientSummary.innerHTML = `
+          <div>
+            <strong>${escapeHtml(activeUser?.fullName || 'Selected customer')}</strong>
+            <span>${escapeHtml(buildRecipientMeta(activeUser))}</span>
+          </div>
+          <i class="fas fa-user-check"></i>
+        `;
       }
+
+      const allOption = `
+        <button type="button" class="recipient-option ${nextValue === 'all' ? 'active' : ''}" onclick="chooseRecipient('all')">
+          <div>
+            <strong>All customers</strong>
+            <span>${allUsers.length.toLocaleString()} registered user(s)</span>
+          </div>
+          <i class="fas fa-bullhorn"></i>
+        </button>
+      `;
+
+      const resultOptions = usersToRender
+        .map((user) => `
+          <button type="button" class="recipient-option ${nextValue === String(user._id) ? 'active' : ''}" onclick="chooseRecipient('${escapeHtml(String(user._id))}')">
+            <div>
+              <strong>${escapeHtml(user.fullName || 'Unnamed')}</strong>
+              <span>${escapeHtml(buildRecipientMeta(user))}</span>
+            </div>
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        `)
+        .join('');
+
+      recipientResults.innerHTML = allOption + (resultOptions || '<div class="recipient-empty">No customer matches that search yet.</div>');
     };
 
     const selectRecipientForOrder = (userId) => {
@@ -1432,6 +1795,7 @@
       if (!messageTitle.value) {
         messageTitle.value = 'Order update';
       }
+      composerForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
       messageBody.focus();
       showToast('Notification composer is ready for that customer.');
     };
@@ -1458,6 +1822,8 @@
           const customerPhone = order.user?.phone || 'No phone';
           const serviceName = order.service?.name || 'Unknown service';
           const planName = order.plan?.name || 'Plan not found';
+          const paymentLabel = getPaymentLabel(order.paymentStatus);
+          const deliveryLabel = getStatusLabel(order);
           const canComplete = order.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(order.status);
           const canCancel = !['completed', 'cancelled'].includes(order.status);
 
@@ -1473,8 +1839,8 @@
                   </div>
                 </div>
                 <div class="badges">
-                  <span class="${getPaymentBadgeClass(order.paymentStatus)}"><i class="fas fa-wallet"></i>${escapeHtml(getPaymentLabel(order.paymentStatus))}</span>
-                  <span class="${getStatusBadgeClass(order.status)}"><i class="fas fa-briefcase"></i>${escapeHtml(getStatusLabel(order))}</span>
+                  <span class="${getPaymentBadgeClass(order.paymentStatus)}"><i class="fas fa-wallet"></i>${escapeHtml(paymentLabel)}</span>
+                  <span class="${getStatusBadgeClass(order.status)}"><i class="fas fa-briefcase"></i>${escapeHtml(deliveryLabel)}</span>
                 </div>
               </div>
 
@@ -1493,11 +1859,11 @@
                 </div>
                 <div class="metric">
                   <label>Payment</label>
-                  <strong>${escapeHtml(getPaymentLabel(order.paymentStatus))}</strong>
+                  <strong>${escapeHtml(paymentLabel)}</strong>
                 </div>
                 <div class="metric">
                   <label>Delivery</label>
-                  <strong>${escapeHtml(getStatusLabel(order))}</strong>
+                  <strong>${escapeHtml(deliveryLabel)}</strong>
                 </div>
                 <div class="metric">
                   <label>Order ID</label>
@@ -1549,6 +1915,7 @@
               }
 
               <div class="order-actions">
+                <button class="btn btn-secondary" onclick="openOrderEditor('${order._id}')"><i class="fas fa-pen-to-square"></i> Edit order</button>
                 ${
                   order.paymentStatus !== 'paid' && order.status !== 'cancelled'
                     ? `<button class="btn btn-gold" onclick="updateOrder('${order._id}', { paymentStatus: 'paid' }, 'Payment marked as paid.')"><i class="fas fa-circle-check"></i> Mark paid</button>`
@@ -1666,6 +2033,7 @@
       adminToken = '';
       localStorage.removeItem('dinkAdminToken');
       clearInterval(refreshTimer);
+      closeOrderEditor();
       dashboardView.hidden = true;
       servicesView.hidden = true;
       loginView.hidden = false;
@@ -1739,6 +2107,11 @@
       );
     };
 
+    window.chooseRecipient = (value) => {
+      renderRecipientOptions(value || 'all');
+    };
+    window.openOrderEditor = openOrderEditor;
+    window.closeOrderEditor = closeOrderEditor;
     window.selectRecipientForOrder = selectRecipientForOrder;
     window.selectServiceEditor = (serviceId) => {
       const service = allServices.find((item) => item.id === serviceId);
@@ -1754,6 +2127,8 @@
     logoutButton.addEventListener('click', () => handleLogout());
     servicesLogoutButton.addEventListener('click', () => handleLogout());
     newServiceButton.addEventListener('click', resetServiceForm);
+    closeOrderEditorButton.addEventListener('click', closeOrderEditor);
+    cancelOrderEditorButton.addEventListener('click', closeOrderEditor);
 
     searchInput.addEventListener('input', (event) => {
       searchQuery = event.target.value.trim().toLowerCase();
@@ -1763,6 +2138,59 @@
     recipientSearchInput.addEventListener('input', (event) => {
       recipientSearchQuery = event.target.value.trim().toLowerCase();
       renderRecipientOptions();
+    });
+
+    orderEditorModal.addEventListener('click', (event) => {
+      if (event.target === orderEditorModal) {
+        closeOrderEditor();
+      }
+    });
+
+    orderEditorForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!editingOrderId) {
+        showToast('Choose an order to edit first.', 'error');
+        return;
+      }
+
+      const saveButton = document.getElementById('saveOrderButton');
+      saveButton.disabled = true;
+
+      try {
+        const payload = {
+          user: {
+            fullName: orderCustomerField.value.trim(),
+            email: orderEmailField.value.trim(),
+            phone: orderPhoneField.value.trim()
+          },
+          service: {
+            name: orderServiceField.value.trim()
+          },
+          plan: {
+            name: orderPlanField.value.trim(),
+            price: orderAmountField.value.trim()
+          },
+          totalAmount: orderAmountField.value.trim(),
+          paymentStatus: orderPaymentField.value,
+          status: orderStatusField.value,
+          adminNote: orderAdminNoteField.value.trim(),
+          credentials: parseJsonObjectField(orderCredentialsField.value, 'Credentials')
+        };
+
+        await authFetch(`/admin/orders/${editingOrderId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+
+        closeOrderEditor();
+        showToast('Order updated.');
+        await refreshDashboard(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to update order.', 'error');
+      } finally {
+        saveButton.disabled = false;
+      }
     });
 
     messageAttachment.addEventListener('change', async (event) => {
@@ -1903,6 +2331,12 @@
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && adminToken) {
         refreshDashboard(true);
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !orderEditorModal.hidden) {
+        closeOrderEditor();
       }
     });
 

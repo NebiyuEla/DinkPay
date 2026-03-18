@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { API_URL } from '../config';
 import BrandIcon from '../components/BrandIcon';
-import { buildServiceSurface } from '../utils/serviceSurface';
+import { buildServiceTheme } from '../utils/serviceSurface';
 import { formatEtb } from '../utils/format';
 
 const normalizeMessage = (value, fallback) => {
@@ -27,6 +27,7 @@ const normalizeMessage = (value, fallback) => {
 const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
   const [processing, setProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const serviceTheme = useMemo(() => buildServiceTheme(service.color), [service.color]);
 
   const credentialCount = Object.keys(pendingCredentials || {}).length;
   const detailRows = useMemo(
@@ -67,9 +68,17 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
         })
       });
 
-      const data = await response.json().catch(() => ({}));
+      const rawBody = await response.text();
+      let data = {};
+
+      try {
+        data = rawBody ? JSON.parse(rawBody) : {};
+      } catch (parseError) {
+        data = { message: rawBody || '' };
+      }
+
       if (!response.ok || !data.success || !data.checkoutUrl) {
-        throw new Error(normalizeMessage(data.message, 'Unable to create checkout right now.'));
+        throw new Error(normalizeMessage(data.message || rawBody, 'Unable to create checkout right now.'));
       }
 
       window.location.assign(data.checkoutUrl);
@@ -117,7 +126,8 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
         style={{
           padding: '18px',
           marginBottom: '12px',
-          background: buildServiceSurface(service.color)
+          background: serviceTheme.surface,
+          border: `1px solid ${serviceTheme.border}`
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -126,8 +136,8 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
               width: '70px',
               height: '70px',
               borderRadius: '22px',
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: serviceTheme.iconShell,
+              border: `1px solid ${serviceTheme.iconShellBorder}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -147,14 +157,14 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.62)', marginBottom: '8px' }}>
+            <div style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: serviceTheme.mutedText, marginBottom: '8px' }}>
               Order payment
             </div>
-            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>{service.name}</h2>
-            <p style={{ margin: '6px 0 0', color: 'rgba(255,255,255,0.72)', fontSize: '13px' }}>
+            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: serviceTheme.primaryText }}>{service.name}</h2>
+            <p style={{ margin: '6px 0 0', color: serviceTheme.secondaryText, fontSize: '13px' }}>
               {plan.name} plan
             </p>
-            <div style={{ marginTop: '10px', color: '#49FA84', fontSize: '16px', fontWeight: 800 }}>
+            <div style={{ marginTop: '10px', color: serviceTheme.accentText, fontSize: '16px', fontWeight: 800 }}>
               Pay {formatEtb(plan.price)}
             </div>
           </div>

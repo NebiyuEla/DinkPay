@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import BrandIcon from '../components/BrandIcon';
-import { buildServiceSurface } from '../utils/serviceSurface';
+import { buildServiceTheme } from '../utils/serviceSurface';
 import { formatEtb } from '../utils/format';
 
 const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
   const [credentials, setCredentials] = useState({});
   const [showPassword, setShowPassword] = useState({});
+  const serviceTheme = buildServiceTheme(service.color);
 
   const handleInputChange = (field, value) => {
     setCredentials((current) => ({ ...current, [field]: value }));
@@ -62,7 +63,8 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
         style={{
           padding: '18px',
           marginBottom: '12px',
-          background: buildServiceSurface(service.color)
+          background: serviceTheme.surface,
+          border: `1px solid ${serviceTheme.border}`
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -71,8 +73,8 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
               width: '68px',
               height: '68px',
               borderRadius: '20px',
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: serviceTheme.iconShell,
+              border: `1px solid ${serviceTheme.iconShellBorder}`,
               padding: '12px',
               display: 'flex',
               alignItems: 'center',
@@ -92,11 +94,11 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0 }}>{service.name}</h2>
-            <p style={{ margin: '6px 0 0', color: 'rgba(255,255,255,0.74)', fontSize: '13px' }}>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: serviceTheme.primaryText }}>{service.name}</h2>
+            <p style={{ margin: '6px 0 0', color: serviceTheme.secondaryText, fontSize: '13px' }}>
               {plan.name} plan
             </p>
-            <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 700, color: '#49FA84' }}>
+            <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 700, color: serviceTheme.accentText }}>
               Pay {formatEtb(plan.price)}
             </div>
           </div>

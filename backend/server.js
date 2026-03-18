@@ -277,6 +277,16 @@ const splitFullName = (fullName = '') => {
   };
 };
 
+const sanitizeCheckoutText = (value = '', fallback = 'Customer') => {
+  const cleaned = String(value || '')
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned || fallback;
+};
+
 const getSafeCheckoutEmail = (user) => {
   if (user?.telegramId) {
     return `cust${String(user.telegramId).replace(/\D/g, '')}@gmail.com`;
@@ -366,6 +376,50 @@ const normalizeMessage = (value, fallback) => {
   return fallback;
 };
 
+const extractChapaErrorMessage = (payload, fallback = 'Unable to start Chapa checkout') => {
+  const parts = [];
+  const seen = new Set();
+
+  const collect = (value) => {
+    if (!value) {
+      return;
+    }
+
+    if (typeof value === 'string') {
+      const text = value.trim();
+      if (!text || seen.has(text)) {
+        return;
+      }
+
+      seen.add(text);
+      parts.push(text);
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+      return;
+    }
+
+    if (typeof value === 'object') {
+      ['message', 'detail', 'error', 'errors', 'data', 'description'].forEach((key) => {
+        if (key in value) {
+          collect(value[key]);
+        }
+      });
+
+      Object.values(value).forEach((entry) => {
+        if (parts.length < 6) {
+          collect(entry);
+        }
+      });
+    }
+  };
+
+  collect(payload);
+  return parts.length > 0 ? parts.slice(0, 4).join(' • ') : fallback;
+};
+
 const getBackendBaseUrl = (req) => {
   const forwardedProto = req.headers['x-forwarded-proto'];
   const forwardedHost = req.headers['x-forwarded-host'];
@@ -407,6 +461,25 @@ const buildUrl = (base, pathname, query = {}) => {
 const normalizeBoolean = (value) =>
   value === true || value === 'true' || value === 1 || value === '1';
 
+const parseMoneyValue = (value) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : NaN;
+  }
+
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/,/g, '')
+    .replace(/\betb\b/gi, '')
+    .replace(/\s+/g, '');
+
+  if (!normalized) {
+    return NaN;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+};
+
 const normalizeServiceIconPath = (icon = '') => {
   const trimmed = String(icon || '').trim();
   if (!trimmed) {
@@ -445,7 +518,7 @@ const sanitizeServicePayload = (payload = {}) => {
     ? payload.plans
         .map((plan) => ({
           name: String(plan?.name || '').trim(),
-          price: Number(plan?.price),
+          price: parseMoneyValue(plan?.price),
           ...(plan?.quality ? { quality: String(plan.quality).trim() } : {})
         }))
         .filter((plan) => plan.name && Number.isFinite(plan.price) && plan.price > 0)
@@ -1252,8 +1325,9 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Selected service was not found' });
     }
 
+    const requestedPlanPrice = parseMoneyValue(plan.price);
     const selectedPlan = selectedService.plans.find(
-      (item) => item.name === plan.name && Number(item.price) === Number(plan.price)
+      (item) => item.name === plan.name && parseMoneyValue(item.price) === requestedPlanPrice
     );
     if (!selectedPlan) {
       return res.status(400).json({ success: false, message: 'Selected plan was not found' });
@@ -1263,30 +1337,32 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
       return res.status(500).json({ success: false, message: 'Chapa is not configured on the server' });
     }
 
+    const checkoutAmount = parseMoneyValue(selectedPlan.price);
+    if (!Number.isFinite(checkoutAmount) || checkoutAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Selected plan price is invalid' });
+    }
+
     const orderId = generateOrderId();
     const txRef = generateTxRef();
     const { firstName, lastName } = splitFullName(req.user.fullName);
+    const safeFirstName = sanitizeCheckoutText(firstName, 'Customer').slice(0, 40);
+    const safeLastName = sanitizeCheckoutText(lastName || firstName, 'Customer').slice(0, 40);
     const returnUrl =
       returnMode === 'telegram-external'
         ? buildUrl(getBackendBaseUrl(req), '/api/chapa/return', { tx_ref: txRef })
         : buildUrl(getFrontendBaseUrl(req), '/', { payment: 'return', tx_ref: txRef });
     const checkoutPayload = {
-      amount: String(Number(selectedPlan.price)),
+      amount: checkoutAmount.toFixed(2),
       currency: 'ETB',
       email: getSafeCheckoutEmail(req.user),
-      first_name: firstName,
-      last_name: lastName,
+      first_name: safeFirstName,
+      last_name: safeLastName,
       tx_ref: txRef,
       callback_url: buildUrl(getBackendBaseUrl(req), '/api/chapa/callback', { tx_ref: txRef }),
       return_url: returnUrl,
       customization: {
         title: 'DINK Pay',
-        description: `${selectedService.name} - ${selectedPlan.name}`
-      },
-      meta: {
-        order_id: orderId,
-        service_name: selectedService.name,
-        plan_name: selectedPlan.name
+        description: 'Secure ETB checkout'
       }
     };
 
@@ -1299,12 +1375,27 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
       body: JSON.stringify(checkoutPayload)
     });
 
-    const chapaData = await chapaResponse.json();
+    const rawChapaBody = await chapaResponse.text();
+    let chapaData = {};
+
+    try {
+      chapaData = rawChapaBody ? JSON.parse(rawChapaBody) : {};
+    } catch (error) {
+      chapaData = { message: rawChapaBody || '' };
+    }
 
     if (!chapaResponse.ok || chapaData?.status !== 'success') {
+      console.error('Chapa initialization failed', {
+        status: chapaResponse.status,
+        response: chapaData,
+        serviceId: selectedService.id,
+        planName: selectedPlan.name,
+        amount: checkoutPayload.amount
+      });
+
       return res.status(400).json({
         success: false,
-        message: normalizeMessage(chapaData?.message, 'Unable to start Chapa checkout')
+        message: extractChapaErrorMessage(chapaData, 'Unable to start Chapa checkout')
       });
     }
 
@@ -1325,10 +1416,10 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
       },
       plan: {
         name: selectedPlan.name,
-        price: Number(selectedPlan.price)
+        price: checkoutAmount
       },
       credentials,
-      totalAmount: Number(selectedPlan.price),
+      totalAmount: checkoutAmount,
       status: 'pending',
       paymentStatus: 'pending',
       paymentMethod: 'chapa',
@@ -1364,6 +1455,9 @@ app.post('/api/orders/create', requireUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Selected service or plan was not found' });
     }
 
+    const orderAmount = parseMoneyValue(totalAmount || selectedPlan.price);
+    const selectedPlanPrice = parseMoneyValue(selectedPlan.price);
+
     const order = await Order.create({
       orderId: generateOrderId(),
       userId: req.user._id,
@@ -1381,10 +1475,10 @@ app.post('/api/orders/create', requireUser, async (req, res, next) => {
       },
       plan: {
         name: selectedPlan.name,
-        price: Number(selectedPlan.price)
+        price: Number.isFinite(selectedPlanPrice) ? selectedPlanPrice : 0
       },
       credentials,
-      totalAmount: Number(totalAmount || selectedPlan.price || 0),
+      totalAmount: Number.isFinite(orderAmount) ? orderAmount : 0,
       status: 'pending',
       paymentStatus: 'pending',
       paymentMethod: 'manual'
@@ -1726,7 +1820,7 @@ app.get('/api/admin/orders', requireAdmin, async (req, res, next) => {
 
 app.put('/api/admin/orders/:id', requireAdmin, async (req, res, next) => {
   try {
-    const { status, paymentStatus, adminNote } = req.body;
+    const { status, paymentStatus, adminNote, user, service, plan, totalAmount, credentials } = req.body;
     const order = await Order.findById(req.params.id);
 
     if (!order) {
@@ -1754,11 +1848,53 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req, res, next) => {
       if (paymentStatus === 'paid') {
         order.paidAt = order.paidAt || new Date();
         order.chapaStatus = 'success';
+      } else {
+        order.chapaStatus = paymentStatus === 'failed' ? 'failed' : paymentStatus;
+        order.paidAt = undefined;
       }
     }
 
     if (typeof adminNote === 'string') {
       order.adminNote = adminNote.trim();
+    }
+
+    if (user && typeof user === 'object') {
+      order.user = {
+        ...order.user,
+        ...(typeof user.fullName === 'string' ? { fullName: user.fullName.trim() || order.user?.fullName } : {}),
+        ...(typeof user.email === 'string' ? { email: user.email.trim() || order.user?.email } : {}),
+        ...(typeof user.phone === 'string' ? { phone: user.phone.trim() || order.user?.phone } : {})
+      };
+    }
+
+    if (service && typeof service === 'object') {
+      order.service = {
+        ...order.service,
+        ...(typeof service.name === 'string' ? { name: service.name.trim() || order.service?.name } : {}),
+        ...(typeof service.icon === 'string' ? { icon: service.icon.trim() || order.service?.icon } : {}),
+        ...(typeof service.fallback === 'string' ? { fallback: service.fallback.trim() || order.service?.fallback } : {}),
+        ...(typeof service.color === 'string' ? { color: service.color.trim() || order.service?.color } : {})
+      };
+    }
+
+    if (plan && typeof plan === 'object') {
+      const nextPlanPrice = parseMoneyValue(plan.price);
+      order.plan = {
+        ...order.plan,
+        ...(typeof plan.name === 'string' ? { name: plan.name.trim() || order.plan?.name } : {}),
+        ...(Number.isFinite(nextPlanPrice) ? { price: nextPlanPrice } : {})
+      };
+    }
+
+    const nextTotalAmount = parseMoneyValue(totalAmount);
+    if (Number.isFinite(nextTotalAmount) && nextTotalAmount >= 0) {
+      order.totalAmount = nextTotalAmount;
+    }
+
+    if (credentials && typeof credentials === 'object' && !Array.isArray(credentials)) {
+      order.credentials = Object.fromEntries(
+        Object.entries(credentials).map(([key, value]) => [key, String(value ?? '').trim()])
+      );
     }
 
     await order.save();

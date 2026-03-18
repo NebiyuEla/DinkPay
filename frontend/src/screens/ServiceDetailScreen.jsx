@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import BrandIcon from '../components/BrandIcon';
-import { buildServiceSurface } from '../utils/serviceSurface';
+import { buildServiceTheme } from '../utils/serviceSurface';
 import { formatEtb } from '../utils/format';
 
 const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
   const [selectedPlanIndex, setSelectedPlanIndex] = useState(0);
+  const serviceTheme = useMemo(() => buildServiceTheme(service.color), [service.color]);
 
   const selectedPlan = useMemo(
     () => service?.plans?.[selectedPlanIndex] || null,
@@ -48,7 +49,8 @@ const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
         style={{
           padding: '18px',
           marginBottom: '12px',
-          background: buildServiceSurface(service.color)
+          background: serviceTheme.surface,
+          border: `1px solid ${serviceTheme.border}`
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -57,8 +59,8 @@ const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
               width: '78px',
               height: '78px',
               borderRadius: '24px',
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: serviceTheme.iconShell,
+              border: `1px solid ${serviceTheme.iconShellBorder}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -78,13 +80,13 @@ const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.62)', marginBottom: '8px' }}>
+            <div style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: serviceTheme.mutedText, marginBottom: '8px' }}>
               DINK Payment
             </div>
-            <h1 style={{ fontSize: '28px', lineHeight: 1.02, fontWeight: 800, color: 'white', margin: 0 }}>
+            <h1 style={{ fontSize: '28px', lineHeight: 1.02, fontWeight: 800, color: serviceTheme.primaryText, margin: 0 }}>
               {service.name}
             </h1>
-            <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.72)', fontSize: '13px', lineHeight: 1.5 }}>
+            <p style={{ margin: '8px 0 0', color: serviceTheme.secondaryText, fontSize: '13px', lineHeight: 1.5 }}>
               Choose your plan and keep moving. The next step takes you straight to the account details and payment.
             </p>
           </div>

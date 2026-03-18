@@ -1,9 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import BrandIcon from './BrandIcon';
-import { buildServiceSurface } from '../utils/serviceSurface';
+import { buildServiceTheme } from '../utils/serviceSurface';
 
 const ServiceCard = ({ service, onClick }) => {
+  const theme = buildServiceTheme(service.color);
+
   return (
     <motion.button
       type="button"
@@ -16,10 +18,10 @@ const ServiceCard = ({ service, onClick }) => {
         justifyContent: 'space-between',
         cursor: 'pointer',
         position: 'relative',
-        background: buildServiceSurface(service.color),
+        background: theme.surface,
         borderRadius: '18px',
-        border: '1px solid rgba(255,255,255,0.12)',
-        boxShadow: '0 18px 34px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255,255,255,0.1)',
+        border: `1px solid ${theme.border}`,
+        boxShadow: theme.shadow,
         transition: 'transform 0.18s ease, box-shadow 0.18s ease',
         minHeight: '172px',
         overflow: 'hidden'
@@ -30,7 +32,7 @@ const ServiceCard = ({ service, onClick }) => {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 26%, rgba(7,11,24,0.12) 100%)',
+          background: theme.overlay,
           pointerEvents: 'none'
         }}
       />
@@ -68,21 +70,21 @@ const ServiceCard = ({ service, onClick }) => {
         </div>
 
         <div
-          style={{
-            width: '100%',
-            padding: '0 10px 14px'
+            style={{
+              width: '100%',
+              padding: '0 10px 14px'
           }}
         >
           <h3
             style={{
               fontSize: '15px',
               fontWeight: 700,
-              color: '#FFFFFF',
+              color: theme.primaryText,
               margin: 0,
               lineHeight: 1.15,
               textAlign: 'center',
               textWrap: 'balance',
-              textShadow: '0 4px 14px rgba(0,0,0,0.22)'
+              textShadow: theme.isLight ? 'none' : '0 4px 14px rgba(0,0,0,0.22)'
             }}
           >
             {service.name}
