@@ -171,10 +171,18 @@ const serviceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const adminSettingsSchema = new mongoose.Schema(
+  {
+    globalDiscountPercent: { type: Number, default: 0 }
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model('User', userSchema);
 const Order = mongoose.model('Order', orderSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
 const Service = mongoose.model('Service', serviceSchema);
+const AdminSettings = mongoose.model('AdminSettings', adminSettingsSchema);
 
 const createUserToken = (userId) => `dummy-token-${userId}`;
 
@@ -508,6 +516,36 @@ const applyDiscountToAmount = (amount, discountPercent = 0) => {
   return Math.max(0.01, Math.round(numericAmount * (1 - normalizedDiscount / 100) * 100) / 100);
 };
 
+const getEffectiveDiscountPercent = (serviceDiscountPercent = 0, globalDiscountPercent = 0) =>
+  Math.max(
+    normalizeDiscountPercent(serviceDiscountPercent, 0),
+    normalizeDiscountPercent(globalDiscountPercent, 0)
+  );
+
+const getAdminSettings = async () =>
+  AdminSettings.findOneAndUpdate(
+    {},
+    { $setOnInsert: { globalDiscountPercent: 0 } },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true
+    }
+  );
+
+const decoratePublicService = (service, globalDiscountPercent = 0) => {
+  const normalizedService = sanitizeServicePayload(service);
+  const serviceDiscountPercent = normalizeDiscountPercent(normalizedService.discountPercent, 0);
+  const normalizedGlobalDiscount = normalizeDiscountPercent(globalDiscountPercent, 0);
+
+  return {
+    ...normalizedService,
+    serviceDiscountPercent,
+    globalDiscountPercent: normalizedGlobalDiscount,
+    discountPercent: getEffectiveDiscountPercent(serviceDiscountPercent, normalizedGlobalDiscount)
+  };
+};
+
 const normalizeServiceSortOrder = (value, fallback = 999) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -622,6 +660,11 @@ const listServicesFromDatabase = async () => {
   return services.map((service) => sanitizeServicePayload(service));
 };
 
+const listPublicServicesFromDatabase = async () => {
+  const [services, settings] = await Promise.all([listServicesFromDatabase(), getAdminSettings()]);
+  return services.map((service) => decoratePublicService(service, settings?.globalDiscountPercent));
+};
+
 const ensureServiceCatalogSeeded = async () => {
   if (serviceCatalogSeeded) {
     return;
@@ -687,6 +730,11 @@ const ensureServiceCatalogSeeded = async () => {
 };
 
 const loadServiceCatalog = async () => {
+  await ensureServiceCatalogSeeded();
+  return listPublicServicesFromDatabase();
+};
+
+const loadAdminServiceCatalog = async () => {
   await ensureServiceCatalogSeeded();
   return listServicesFromDatabase();
 };
@@ -1787,9 +1835,52 @@ app.get('/api/admin/users', requireAdmin, async (req, res, next) => {
   }
 });
 
+app.get('/api/admin/users/:id/profile', requireAdmin, async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid customer id' });
+    }
+
+    const user = await User.findById(req.params.id)
+      .select('fullName email phone telegramId telegramUsername createdAt')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    await syncPendingChapaOrders({ userId: user._id });
+
+    const orders = filterVisibleOrders(
+      await Order.find({ userId: user._id }).sort({ createdAt: -1 }).lean()
+    ).map(serializeOrder);
+
+    const paidOrders = orders.filter((order) => order.paymentStatus === 'paid').length;
+    const totalSpent = orders
+      .filter((order) => order.paymentStatus === 'paid')
+      .reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+
+    res.json({
+      success: true,
+      profile: {
+        user,
+        orders,
+        stats: {
+          totalOrders: orders.length,
+          paidOrders,
+          activeOrders: orders.filter((order) => order.paymentStatus === 'paid' && !['completed', 'cancelled'].includes(order.status)).length,
+          totalSpent
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/admin/services', requireAdmin, async (req, res, next) => {
   try {
-    res.json({ success: true, services: await loadServiceCatalog() });
+    res.json({ success: true, services: await loadAdminServiceCatalog() });
   } catch (error) {
     next(error);
   }
@@ -2056,6 +2147,7 @@ app.get('/api/admin/stats', requireAdmin, async (req, res, next) => {
   try {
     await syncPendingChapaOrders();
     const orders = filterVisibleOrders(await Order.find().lean());
+    const settings = await getAdminSettings();
     const total = orders.length;
     const unpaid = orders.filter((order) => order.paymentStatus !== 'paid').length;
     const paid = orders.filter((order) => order.paymentStatus === 'paid').length;
@@ -2075,7 +2167,25 @@ app.get('/api/admin/stats', requireAdmin, async (req, res, next) => {
         processing,
         completed,
         users,
-        revenue
+        revenue,
+        globalDiscountPercent: normalizeDiscountPercent(settings?.globalDiscountPercent, 0)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/settings', requireAdmin, async (req, res, next) => {
+  try {
+    const settings = await getAdminSettings();
+    settings.globalDiscountPercent = normalizeDiscountPercent(req.body?.globalDiscountPercent, 0);
+    await settings.save();
+
+    res.json({
+      success: true,
+      settings: {
+        globalDiscountPercent: normalizeDiscountPercent(settings.globalDiscountPercent, 0)
       }
     });
   } catch (error) {

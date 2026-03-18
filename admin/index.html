@@ -407,6 +407,27 @@
       align-items: center;
     }
 
+    .customer-button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .customer-button:hover .customer h3,
+    .customer-button:focus-visible .customer h3 {
+      color: var(--green);
+    }
+
+    .customer-button:focus-visible {
+      outline: 2px solid rgba(125, 255, 180, 0.3);
+      outline-offset: 6px;
+      border-radius: 22px;
+    }
+
     .avatar {
       width: 52px;
       height: 52px;
@@ -738,6 +759,115 @@
       margin-top: 8px;
     }
 
+    .profile-grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .profile-summary {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .profile-head {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .profile-head .avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 20px;
+      font-size: 22px;
+    }
+
+    .profile-meta {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .profile-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .profile-stat {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .profile-stat strong,
+    .profile-stat span {
+      display: block;
+    }
+
+    .profile-stat span {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .profile-orders {
+      display: grid;
+      gap: 10px;
+    }
+
+    .profile-order {
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      display: grid;
+      gap: 12px;
+    }
+
+    .profile-order-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .profile-order-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .global-discount-card {
+      min-width: min(320px, 100%);
+      padding: 16px 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      display: grid;
+      gap: 12px;
+    }
+
+    .global-discount-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .global-discount-status {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
     .order-edit-meta {
       display: flex;
       gap: 10px;
@@ -1035,7 +1165,9 @@
       .service-layout,
       .service-editor-grid,
       .modal-grid,
-      .composer-grid {
+      .composer-grid,
+      .profile-stats,
+      .global-discount-row {
         grid-template-columns: 1fr;
       }
     }
@@ -1254,6 +1386,18 @@
             <h2 class="section-title">Service Catalog</h2>
             <p class="section-copy">Create new services, adjust plans, and remove old catalog entries from one focused page.</p>
           </div>
+          <form class="global-discount-card" id="globalDiscountForm">
+            <div>
+              <h3 style="margin: 0; font-size: 18px;">Discount for all services</h3>
+              <p class="section-copy" style="margin-top: 6px;">Apply one discount to the whole mini app. Set 0 when you want to cancel it.</p>
+            </div>
+            <div class="global-discount-row">
+              <input class="field" id="globalDiscountField" type="number" min="0" max="99" step="1" placeholder="0">
+              <button class="btn btn-primary" type="submit" id="saveGlobalDiscountButton"><i class="fas fa-badge-percent"></i> Apply to all</button>
+              <button class="btn btn-secondary" type="button" id="clearGlobalDiscountButton"><i class="fas fa-rotate-left"></i> Clear</button>
+            </div>
+            <div class="global-discount-status" id="globalDiscountStatus">No global discount is active right now.</div>
+          </form>
         </div>
 
         <div class="service-layout">
@@ -1419,6 +1563,56 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="customerProfileModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 class="section-title" id="customerProfileTitle">Customer profile</h2>
+          <p class="modal-copy">Review the customer details and every order they have placed without leaving the dashboard.</p>
+        </div>
+        <button class="btn btn-secondary" type="button" id="closeCustomerProfileButton"><i class="fas fa-xmark"></i> Close</button>
+      </div>
+
+      <div class="profile-grid">
+        <section class="profile-summary">
+          <div class="profile-head" id="customerProfileHead">
+            <div class="avatar">U</div>
+            <div>
+              <h3 style="margin: 0;">Loading customer...</h3>
+              <div class="profile-meta" id="customerProfileMeta">
+                <span>Please wait while we load the customer profile.</span>
+              </div>
+            </div>
+          </div>
+          <div class="profile-stats" id="customerProfileStats">
+            <div class="profile-stat"><span>Total orders</span><strong>0</strong></div>
+            <div class="profile-stat"><span>Paid orders</span><strong>0</strong></div>
+            <div class="profile-stat"><span>Active orders</span><strong>0</strong></div>
+            <div class="profile-stat"><span>Total spent</span><strong>0 ETB</strong></div>
+          </div>
+          <div class="auth-actions" style="margin-top: 0;">
+            <button class="btn btn-secondary" type="button" id="messageProfileCustomerButton"><i class="fas fa-paper-plane"></i> Message customer</button>
+          </div>
+        </section>
+
+        <section>
+          <div class="service-panel-head" style="margin-bottom: 14px;">
+            <div>
+              <h3 class="section-title" style="margin: 0;">Customer orders</h3>
+              <p class="section-copy" style="margin-top: 6px;">See what they ordered, payment state, and delivery progress.</p>
+            </div>
+          </div>
+          <div class="profile-orders" id="customerProfileOrders">
+            <div class="empty-state">
+              <i class="fas fa-spinner fa-spin" style="font-size: 26px; margin-bottom: 12px;"></i>
+              <p>Loading order history...</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <script>
     const inferredApiUrl = (() => {
       if (window.location.origin && window.location.origin !== 'null' && window.location.origin !== 'file://') {
@@ -1432,6 +1626,7 @@
     let allOrders = [];
     let allUsers = [];
     let allServices = [];
+    let globalDiscountPercent = 0;
     let activeFilter = 'all';
     let searchQuery = '';
     let recipientSearchQuery = '';
@@ -1439,6 +1634,7 @@
     let editingServiceId = null;
     let reorderingServiceId = '';
     let editingOrderId = null;
+    let activeCustomerProfileId = '';
     let messageAttachmentPayload = null;
     let currentAdminPage = window.location.hash === '#services'
       ? 'services'
@@ -1456,6 +1652,11 @@
     const backToDashboardButton = document.getElementById('backToDashboardButton');
     const servicesRefreshButton = document.getElementById('servicesRefreshButton');
     const servicesLogoutButton = document.getElementById('servicesLogoutButton');
+    const globalDiscountForm = document.getElementById('globalDiscountForm');
+    const globalDiscountField = document.getElementById('globalDiscountField');
+    const saveGlobalDiscountButton = document.getElementById('saveGlobalDiscountButton');
+    const clearGlobalDiscountButton = document.getElementById('clearGlobalDiscountButton');
+    const globalDiscountStatus = document.getElementById('globalDiscountStatus');
     const searchInput = document.getElementById('searchInput');
     const recipientSearchInput = document.getElementById('recipientSearchInput');
     const ordersList = document.getElementById('ordersList');
@@ -1506,6 +1707,16 @@
     const orderStatusField = document.getElementById('orderStatusField');
     const orderAdminNoteField = document.getElementById('orderAdminNoteField');
     const orderCredentialsField = document.getElementById('orderCredentialsField');
+    const customerProfileModal = document.getElementById('customerProfileModal');
+    const customerProfileTitle = document.getElementById('customerProfileTitle');
+    const customerProfileHead = document.getElementById('customerProfileHead');
+    const customerProfileMeta = document.getElementById('customerProfileMeta');
+    const customerProfileStats = document.getElementById('customerProfileStats');
+    const customerProfileOrders = document.getElementById('customerProfileOrders');
+    const closeCustomerProfileButton = document.getElementById('closeCustomerProfileButton');
+    const messageProfileCustomerButton = document.getElementById('messageProfileCustomerButton');
+    const customerProfileAvatar = customerProfileHead.querySelector('.avatar');
+    const customerProfileName = customerProfileHead.querySelector('h3');
 
     apiUrlInput.value = API_URL;
     document.getElementById('adminUsername').value = 'admin';
@@ -1530,7 +1741,27 @@
     };
 
     const formatMoney = (value = 0) => `${Number(value || 0).toLocaleString()} ETB`;
+    const formatPercent = (value = 0) => {
+      const numeric = Number(value || 0);
+      if (!Number.isFinite(numeric)) return '0';
+      return Number.isInteger(numeric) ? numeric.toLocaleString() : numeric.toFixed(2).replace(/\.?0+$/, '');
+    };
     const getInitial = (value = '') => value.trim().charAt(0).toUpperCase() || '?';
+    const getEffectiveServiceDiscount = (service) =>
+      Math.max(Number(service?.discountPercent || 0) || 0, Number(globalDiscountPercent || 0) || 0);
+    const syncBodyOverflow = () => {
+      document.body.style.overflow = !orderEditorModal.hidden || !customerProfileModal.hidden ? 'hidden' : '';
+    };
+    const renderGlobalDiscountState = () => {
+      globalDiscountField.value = String(globalDiscountPercent || 0);
+      globalDiscountStatus.textContent =
+        globalDiscountPercent > 0
+          ? `${formatPercent(globalDiscountPercent)}% global discount is active. Customers will get the higher offer between this and any service-specific discount.`
+          : 'No global discount is active right now.';
+      if (allServices.length > 0) {
+        renderServicesList();
+      }
+    };
 
     const getPaymentBadgeClass = (status) => {
       if (status === 'paid') return 'badge badge-payment-paid';
@@ -1662,7 +1893,7 @@
                 <div class="service-copy">
                   <strong>${escapeHtml(service.name)}</strong>
                   <span>Homepage slot ${index + 1} • ${escapeHtml(service.id)}</span>
-                  <span>${Number(service.discountPercent || 0) > 0 ? `${escapeHtml(String(service.discountPercent))}% off active • ` : ''}${service.plans?.length || 0} plan(s)</span>
+                  <span>${getEffectiveServiceDiscount(service) > 0 ? `${escapeHtml(formatPercent(getEffectiveServiceDiscount(service)))}% ${globalDiscountPercent > Number(service.discountPercent || 0) ? 'global ' : ''}off active • ` : ''}${service.plans?.length || 0} plan(s)</span>
                 </div>
               </button>
               <div class="service-tools">
@@ -1776,7 +2007,12 @@
 
     const setOrderEditorOpen = (open) => {
       orderEditorModal.hidden = !open;
-      document.body.style.overflow = open ? 'hidden' : '';
+      syncBodyOverflow();
+    };
+
+    const setCustomerProfileOpen = (open) => {
+      customerProfileModal.hidden = !open;
+      syncBodyOverflow();
     };
 
     const closeOrderEditor = () => {
@@ -1815,6 +2051,147 @@
       orderCredentialsField.value = formatObjectJson(order.credentials);
       setOrderEditorOpen(true);
       orderCustomerField.focus();
+    };
+
+    const closeCustomerProfile = () => {
+      activeCustomerProfileId = '';
+      customerProfileTitle.textContent = 'Customer profile';
+      customerProfileAvatar.textContent = 'U';
+      customerProfileName.textContent = 'Loading customer...';
+      customerProfileMeta.innerHTML = '<span>Please wait while we load the customer profile.</span>';
+      customerProfileStats.innerHTML = `
+        <div class="profile-stat"><span>Total orders</span><strong>0</strong></div>
+        <div class="profile-stat"><span>Paid orders</span><strong>0</strong></div>
+        <div class="profile-stat"><span>Active orders</span><strong>0</strong></div>
+        <div class="profile-stat"><span>Total spent</span><strong>0 ETB</strong></div>
+      `;
+      customerProfileOrders.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-spinner fa-spin" style="font-size: 26px; margin-bottom: 12px;"></i>
+          <p>Loading order history...</p>
+        </div>
+      `;
+      messageProfileCustomerButton.onclick = null;
+      setCustomerProfileOpen(false);
+    };
+
+    const renderCustomerProfile = (profile = {}) => {
+      const user = profile.user || {};
+      const orders = profile.orders || [];
+      const stats = profile.stats || {};
+
+      customerProfileTitle.textContent = user.fullName || 'Customer profile';
+      customerProfileAvatar.textContent = getInitial(user.fullName || user.email || 'U');
+      customerProfileName.textContent = user.fullName || 'Unnamed customer';
+      customerProfileMeta.innerHTML = [
+        user.email || 'No email saved',
+        user.phone || 'No phone saved',
+        user.telegramUsername ? `Telegram: @${user.telegramUsername}` : (user.telegramId ? 'Telegram linked' : 'Telegram not linked'),
+        `Joined ${formatDate(user.createdAt)}`
+      ]
+        .map((item) => `<span>${escapeHtml(item)}</span>`)
+        .join('');
+
+      customerProfileStats.innerHTML = `
+        <div class="profile-stat"><span>Total orders</span><strong>${Number(stats.totalOrders || 0).toLocaleString()}</strong></div>
+        <div class="profile-stat"><span>Paid orders</span><strong>${Number(stats.paidOrders || 0).toLocaleString()}</strong></div>
+        <div class="profile-stat"><span>Active orders</span><strong>${Number(stats.activeOrders || 0).toLocaleString()}</strong></div>
+        <div class="profile-stat"><span>Total spent</span><strong>${escapeHtml(formatMoney(stats.totalSpent || 0))}</strong></div>
+      `;
+
+      messageProfileCustomerButton.onclick = () => {
+        closeCustomerProfile();
+        selectRecipientForOrder(user._id);
+      };
+
+      customerProfileOrders.innerHTML =
+        orders.length > 0
+          ? orders
+              .map((order) => `
+                <article class="profile-order">
+                  <div class="profile-order-head">
+                    <div>
+                      <strong style="display: block; font-size: 17px; margin-bottom: 4px;">${escapeHtml(order.service?.name || 'Service')}</strong>
+                      <span class="muted">${escapeHtml(order.plan?.name || 'Plan')}</span>
+                    </div>
+                    <div class="profile-order-meta">
+                      <span class="${getPaymentBadgeClass(order.paymentStatus)}"><i class="fas fa-wallet"></i>${escapeHtml(getPaymentLabel(order.paymentStatus))}</span>
+                      <span class="${getStatusBadgeClass(order.status)}"><i class="fas fa-briefcase"></i>${escapeHtml(getStatusLabel(order))}</span>
+                    </div>
+                  </div>
+                  <div class="order-grid" style="margin-bottom: 0;">
+                    <div class="metric">
+                      <label>Amount</label>
+                      <strong>${escapeHtml(formatMoney(order.totalAmount))}</strong>
+                    </div>
+                    <div class="metric">
+                      <label>Order ID</label>
+                      <strong>${escapeHtml(order.orderId || 'N/A')}</strong>
+                    </div>
+                    <div class="metric">
+                      <label>Transaction Ref</label>
+                      <strong>${escapeHtml(order.transactionId || 'Not created')}</strong>
+                    </div>
+                    <div class="metric">
+                      <label>Created</label>
+                      <strong>${escapeHtml(formatDate(order.createdAt))}</strong>
+                    </div>
+                  </div>
+                  <div class="modal-actions" style="margin-top: 0;">
+                    <button class="btn btn-secondary" type="button" onclick="openCustomerOrder('${order._id}')"><i class="fas fa-eye"></i> Open order</button>
+                  </div>
+                </article>
+              `)
+              .join('')
+          : `
+            <div class="empty-state">
+              <i class="fas fa-inbox" style="font-size: 26px; margin-bottom: 12px;"></i>
+              <p>This customer has no visible orders yet.</p>
+            </div>
+          `;
+    };
+
+    const openCustomerProfile = async (userId) => {
+      if (!userId) {
+        showToast('That customer profile is not available yet.', 'error');
+        return;
+      }
+
+      activeCustomerProfileId = String(userId);
+      customerProfileTitle.textContent = 'Customer profile';
+      customerProfileAvatar.textContent = '...';
+      customerProfileName.textContent = 'Loading customer...';
+      customerProfileMeta.innerHTML = '<span>Fetching the latest customer details.</span>';
+      customerProfileStats.innerHTML = `
+        <div class="profile-stat"><span>Total orders</span><strong>...</strong></div>
+        <div class="profile-stat"><span>Paid orders</span><strong>...</strong></div>
+        <div class="profile-stat"><span>Active orders</span><strong>...</strong></div>
+        <div class="profile-stat"><span>Total spent</span><strong>...</strong></div>
+      `;
+      customerProfileOrders.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-spinner fa-spin" style="font-size: 26px; margin-bottom: 12px;"></i>
+          <p>Loading order history...</p>
+        </div>
+      `;
+      messageProfileCustomerButton.onclick = null;
+      setCustomerProfileOpen(true);
+
+      try {
+        const data = await authFetch(`/admin/users/${encodeURIComponent(userId)}/profile`);
+        if (activeCustomerProfileId !== String(userId)) {
+          return;
+        }
+        renderCustomerProfile(data.profile || {});
+      } catch (error) {
+        customerProfileOrders.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-triangle-exclamation" style="font-size: 26px; margin-bottom: 12px;"></i>
+            <p>${escapeHtml(error.message || 'Unable to load customer profile.')}</p>
+          </div>
+        `;
+        showToast(error.message || 'Unable to load customer profile.', 'error');
+      }
     };
 
     const resetComposer = () => {
@@ -2045,14 +2422,16 @@
           return `
             <article class="order-card">
               <div class="order-top">
-                <div class="customer">
-                  <div class="avatar">${escapeHtml(getInitial(customerName))}</div>
-                  <div>
-                    <h3>${escapeHtml(customerName)}</h3>
-                    <p>${escapeHtml(customerEmail)}</p>
-                    <p>${escapeHtml(customerPhone)}</p>
+                <button type="button" class="customer-button" onclick="openCustomerProfile('${escapeHtml(String(order.userId || ''))}')">
+                  <div class="customer">
+                    <div class="avatar">${escapeHtml(getInitial(customerName))}</div>
+                    <div>
+                      <h3>${escapeHtml(customerName)}</h3>
+                      <p>${escapeHtml(customerEmail)}</p>
+                      <p>${escapeHtml(customerPhone)} • Tap to view profile</p>
+                    </div>
                   </div>
-                </div>
+                </button>
                 <div class="badges">
                   <span class="${getPaymentBadgeClass(order.paymentStatus)}"><i class="fas fa-wallet"></i>${escapeHtml(paymentLabel)}</span>
                   <span class="${getStatusBadgeClass(order.status)}"><i class="fas fa-briefcase"></i>${escapeHtml(deliveryLabel)}</span>
@@ -2185,6 +2564,7 @@
         allOrders = ordersData.orders || [];
         allUsers = usersData.users || [];
         allServices = servicesData.services || [];
+        globalDiscountPercent = Number(stats.globalDiscountPercent || 0) || 0;
 
         document.getElementById('statTotal').textContent = stats.total || 0;
         document.getElementById('statUsers').textContent = stats.users || 0;
@@ -2193,6 +2573,7 @@
         document.getElementById('statProcessing').textContent = stats.processing || 0;
         document.getElementById('statCompleted').textContent = stats.completed || 0;
         document.getElementById('statRevenue').textContent = formatMoney(stats.revenue);
+        renderGlobalDiscountState();
 
         const currentRecipient = recipientSelect.value;
         renderRecipientOptions(currentRecipient);
@@ -2249,6 +2630,9 @@
       localStorage.removeItem('dinkAdminToken');
       clearInterval(refreshTimer);
       closeOrderEditor();
+      closeCustomerProfile();
+      globalDiscountPercent = 0;
+      renderGlobalDiscountState();
       dashboardView.hidden = true;
       servicesView.hidden = true;
       loginView.hidden = false;
@@ -2328,6 +2712,12 @@
     window.moveService = moveService;
     window.openOrderEditor = openOrderEditor;
     window.closeOrderEditor = closeOrderEditor;
+    window.openCustomerProfile = openCustomerProfile;
+    window.closeCustomerProfile = closeCustomerProfile;
+    window.openCustomerOrder = (orderId) => {
+      closeCustomerProfile();
+      openOrderEditor(orderId);
+    };
     window.selectRecipientForOrder = selectRecipientForOrder;
     window.selectServiceEditor = (serviceId) => {
       const service = allServices.find((item) => item.id === serviceId);
@@ -2345,6 +2735,7 @@
     newServiceButton.addEventListener('click', resetServiceForm);
     closeOrderEditorButton.addEventListener('click', closeOrderEditor);
     cancelOrderEditorButton.addEventListener('click', closeOrderEditor);
+    closeCustomerProfileButton.addEventListener('click', closeCustomerProfile);
 
     searchInput.addEventListener('input', (event) => {
       searchQuery = event.target.value.trim().toLowerCase();
@@ -2360,6 +2751,41 @@
       if (event.target === orderEditorModal) {
         closeOrderEditor();
       }
+    });
+
+    customerProfileModal.addEventListener('click', (event) => {
+      if (event.target === customerProfileModal) {
+        closeCustomerProfile();
+      }
+    });
+
+    globalDiscountForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      saveGlobalDiscountButton.disabled = true;
+      clearGlobalDiscountButton.disabled = true;
+
+      try {
+        const response = await authFetch('/admin/settings', {
+          method: 'PUT',
+          body: JSON.stringify({
+            globalDiscountPercent: globalDiscountField.value.trim()
+          })
+        });
+        globalDiscountPercent = Number(response.settings?.globalDiscountPercent || 0) || 0;
+        renderGlobalDiscountState();
+        showToast(globalDiscountPercent > 0 ? 'Global discount saved for all services.' : 'Global discount removed.');
+        await refreshDashboard(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to save the global discount.', 'error');
+      } finally {
+        saveGlobalDiscountButton.disabled = false;
+        clearGlobalDiscountButton.disabled = false;
+      }
+    });
+
+    clearGlobalDiscountButton.addEventListener('click', () => {
+      globalDiscountField.value = '0';
+      globalDiscountForm.requestSubmit();
     });
 
     orderEditorForm.addEventListener('submit', async (event) => {
@@ -2553,10 +2979,18 @@
     });
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !orderEditorModal.hidden) {
-        closeOrderEditor();
+      if (event.key === 'Escape') {
+        if (!customerProfileModal.hidden) {
+          closeCustomerProfile();
+          return;
+        }
+        if (!orderEditorModal.hidden) {
+          closeOrderEditor();
+        }
       }
     });
+
+    renderGlobalDiscountState();
 
     if (adminToken) {
       loginView.hidden = true;
