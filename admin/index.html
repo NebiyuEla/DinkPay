@@ -857,7 +857,11 @@
           <div class="stat-value" id="statTotal">0</div>
         </article>
         <article class="stat-card">
-          <div class="stat-label">Not Paid / Check</div>
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value" id="statUsers">0</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Not Paid</div>
           <div class="stat-value" id="statUnpaid">0</div>
         </article>
         <article class="stat-card">
@@ -889,7 +893,7 @@
                 </div>
                 <div class="tabs" id="statusTabs">
                   <button class="tab active" data-filter="all">All</button>
-                  <button class="tab" data-filter="unpaid">Not Paid / Check</button>
+                  <button class="tab" data-filter="unpaid">Not Paid</button>
                   <button class="tab" data-filter="paid">Paid</button>
                   <button class="tab" data-filter="processing">Processing</button>
                   <button class="tab" data-filter="completed">Completed</button>
@@ -910,6 +914,10 @@
           <p class="section-copy">Broadcast to every customer or target a single user when you want to share payment updates, delivery notes, or support messages.</p>
 
           <form class="composer" id="composerForm" style="margin-top: 20px;">
+            <div>
+              <label class="field-label" for="recipientSearchInput">Find customer</label>
+              <input id="recipientSearchInput" placeholder="Search by customer name, email, or phone">
+            </div>
             <div>
               <label class="field-label" for="recipientSelect">Recipient</label>
               <select id="recipientSelect">
@@ -1074,6 +1082,7 @@
     let allServices = [];
     let activeFilter = 'all';
     let searchQuery = '';
+    let recipientSearchQuery = '';
     let refreshTimer = null;
     let editingServiceId = null;
     let messageAttachmentPayload = null;
@@ -1094,6 +1103,7 @@
     const servicesRefreshButton = document.getElementById('servicesRefreshButton');
     const servicesLogoutButton = document.getElementById('servicesLogoutButton');
     const searchInput = document.getElementById('searchInput');
+    const recipientSearchInput = document.getElementById('recipientSearchInput');
     const ordersList = document.getElementById('ordersList');
     const recipientSelect = document.getElementById('recipientSelect');
     const composerForm = document.getElementById('composerForm');
@@ -1155,10 +1165,9 @@
     };
 
     const getPaymentLabel = (status) => {
-      if (status === 'paid') return 'payment paid';
-      if (status === 'failed') return 'payment failed';
-      if (status === 'refunded') return 'payment refunded';
-      return 'payment check';
+      if (status === 'paid') return 'paid';
+      if (status === 'refunded') return 'refunded';
+      return 'not paid';
     };
 
     const getStatusBadgeClass = (status) => {
@@ -1169,11 +1178,11 @@
     };
 
     const getStatusLabel = (order) => {
-      if (order?.status === 'cancelled') return 'delivery cancelled';
-      if (order?.status === 'completed') return 'delivery completed';
-      if (order?.status === 'processing') return 'delivery processing';
-      if (order?.paymentStatus !== 'paid') return 'awaiting payment';
-      return 'awaiting admin';
+      if (order?.status === 'cancelled') return 'cancelled';
+      if (order?.status === 'completed') return 'completed';
+      if (order?.status === 'processing') return 'processing';
+      if (order?.paymentStatus !== 'paid') return 'waiting payment';
+      return 'waiting admin';
     };
 
     const formatJson = (value) => JSON.stringify(value || [], null, 2);
@@ -1341,7 +1350,7 @@
 
     const matchesFilter = (order) => {
       if (activeFilter === 'unpaid') return order.paymentStatus !== 'paid';
-      if (activeFilter === 'paid') return order.paymentStatus === 'paid' && order.status === 'pending';
+      if (activeFilter === 'paid') return order.paymentStatus === 'paid';
       if (activeFilter === 'processing') return order.status === 'processing';
       if (activeFilter === 'completed') return order.status === 'completed';
       return true;
@@ -1368,8 +1377,58 @@
 
     const getVisibleOrders = () => allOrders.filter((order) => matchesFilter(order) && matchesSearch(order));
 
+    const buildRecipientLabel = (user) =>
+      `${user.fullName || 'Unnamed'} (${user.email || user.phone || 'No contact'})`;
+
+    const matchesRecipientSearch = (user) => {
+      if (!recipientSearchQuery) return true;
+
+      const haystack = [user.fullName, user.email, user.phone]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(recipientSearchQuery);
+    };
+
+    const renderRecipientOptions = (preferredValue = recipientSelect.value || 'all') => {
+      const selectedUser =
+        preferredValue && preferredValue !== 'all'
+          ? allUsers.find((user) => String(user._id) === String(preferredValue))
+          : null;
+
+      const usersToRender = [];
+      const seen = new Set();
+
+      [selectedUser, ...allUsers.filter(matchesRecipientSearch)].forEach((user) => {
+        if (!user?._id) return;
+        const key = String(user._id);
+        if (seen.has(key)) return;
+        seen.add(key);
+        usersToRender.push(user);
+      });
+
+      recipientSelect.innerHTML =
+        '<option value="all">All customers</option>' +
+        usersToRender
+          .map((user) => `
+            <option value="${escapeHtml(user._id)}">
+              ${escapeHtml(buildRecipientLabel(user))}
+            </option>
+          `)
+          .join('');
+
+      if ([...recipientSelect.options].some((option) => option.value === String(preferredValue))) {
+        recipientSelect.value = String(preferredValue);
+      } else {
+        recipientSelect.value = 'all';
+      }
+    };
+
     const selectRecipientForOrder = (userId) => {
-      recipientSelect.value = userId || 'all';
+      recipientSearchQuery = '';
+      recipientSearchInput.value = '';
+      renderRecipientOptions(userId || 'all');
       if (!messageTitle.value) {
         messageTitle.value = 'Order update';
       }
@@ -1546,6 +1605,7 @@
         allServices = servicesData.services || [];
 
         document.getElementById('statTotal').textContent = stats.total || 0;
+        document.getElementById('statUsers').textContent = stats.users || 0;
         document.getElementById('statUnpaid').textContent = stats.unpaid || 0;
         document.getElementById('statPaid').textContent = stats.paid || 0;
         document.getElementById('statProcessing').textContent = stats.processing || 0;
@@ -1553,17 +1613,7 @@
         document.getElementById('statRevenue').textContent = formatMoney(stats.revenue);
 
         const currentRecipient = recipientSelect.value;
-        recipientSelect.innerHTML = '<option value="all">All customers</option>' +
-          allUsers
-            .map((user) => `
-              <option value="${escapeHtml(user._id)}">
-                ${escapeHtml(user.fullName || 'Unnamed')} (${escapeHtml(user.email || user.phone || 'No contact')})
-              </option>
-            `)
-            .join('');
-        if ([...recipientSelect.options].some((option) => option.value === currentRecipient)) {
-          recipientSelect.value = currentRecipient;
-        }
+        renderRecipientOptions(currentRecipient);
 
         if (editingServiceId) {
           fillServiceForm(allServices.find((service) => service.id === editingServiceId));
@@ -1708,6 +1758,11 @@
     searchInput.addEventListener('input', (event) => {
       searchQuery = event.target.value.trim().toLowerCase();
       renderOrders();
+    });
+
+    recipientSearchInput.addEventListener('input', (event) => {
+      recipientSearchQuery = event.target.value.trim().toLowerCase();
+      renderRecipientOptions();
     });
 
     messageAttachment.addEventListener('change', async (event) => {

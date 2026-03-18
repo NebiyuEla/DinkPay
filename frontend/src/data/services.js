@@ -94,7 +94,7 @@ export const services = [
   {
     id: 'youtube',
     name: 'YouTube Premium',
-    icon: '/icons/youtube.svg',
+    icon: '/icons/youtube.png',
     fallback: 'Y',
     color: '#FF0000',
     category: 'streaming',
@@ -114,7 +114,7 @@ export const services = [
   {
     id: 'telegram-stars',
     name: 'Telegram Stars',
-    icon: '/icons/telegram-stars.svg',
+    icon: '/icons/tgstars.png',
     fallback: '⭐',
     color: '#FFD700',
     category: 'social',
@@ -275,7 +275,7 @@ export const services = [
   {
     id: 'duolingo',
     name: 'Duolingo',
-    icon: '/icons/duolingo.svg',
+    icon: '/icons/duolingo.png',
     fallback: 'D',
     color: '#58CC02',
     category: 'education',
@@ -292,7 +292,7 @@ export const services = [
   {
     id: 'instagram-services',
     name: 'Instagram Services',
-    icon: '/icons/instagram-services.svg',
+    icon: '/icons/igsvs.svg',
     fallback: 'IG+',
     color: '#C13584',
     category: 'social',

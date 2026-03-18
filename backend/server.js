@@ -52,6 +52,14 @@ const paymentSyncCache = new Map();
 const allowedOrderStatuses = new Set(['pending', 'processing', 'completed', 'cancelled']);
 const allowedPaymentStatuses = new Set(['pending', 'paid', 'failed', 'refunded']);
 const allowedFormatStyles = new Set(['plain', 'bold', 'italic', 'code']);
+const legacyServiceIconPathMap = new Map([
+  ['/icons/youtube.svg', '/icons/youtube.png'],
+  ['/icons/telegram-stars.svg', '/icons/tgstars.png'],
+  ['/icons/duolingo.svg', '/icons/duolingo.png'],
+  ['/icons/instagram-services.svg', '/icons/igsvs.svg']
+]);
+
+let serviceCatalogSeeded = false;
 
 const userSchema = new mongoose.Schema(
   {
@@ -126,9 +134,43 @@ const notificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const serviceInputSchema = new mongoose.Schema(
+  {
+    type: String,
+    label: String,
+    placeholder: String
+  },
+  { _id: false }
+);
+
+const servicePlanSchema = new mongoose.Schema(
+  {
+    name: String,
+    price: Number
+  },
+  { _id: false }
+);
+
+const serviceSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    icon: String,
+    fallback: String,
+    color: String,
+    category: String,
+    popular: { type: Boolean, default: false },
+    requiresCredentials: { type: Boolean, default: false },
+    inputs: { type: [serviceInputSchema], default: [] },
+    plans: { type: [servicePlanSchema], default: [] }
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model('User', userSchema);
 const Order = mongoose.model('Order', orderSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
+const Service = mongoose.model('Service', serviceSchema);
 
 const createUserToken = (userId) => `dummy-token-${userId}`;
 
@@ -362,29 +404,17 @@ const buildUrl = (base, pathname, query = {}) => {
   return url.toString();
 };
 
-const loadServiceCatalog = () => {
-  try {
-    if (!fs.existsSync(SERVICES_FILE_PATH)) {
-      return [];
-    }
-
-    const raw = fs.readFileSync(SERVICES_FILE_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error('Unable to load services catalog:', error);
-    return [];
-  }
-};
-
-const saveServiceCatalog = (services) => {
-  fs.mkdirSync(path.dirname(SERVICES_FILE_PATH), { recursive: true });
-  fs.writeFileSync(SERVICES_FILE_PATH, JSON.stringify(services, null, 2));
-  return services;
-};
-
 const normalizeBoolean = (value) =>
   value === true || value === 'true' || value === 1 || value === '1';
+
+const normalizeServiceIconPath = (icon = '') => {
+  const trimmed = String(icon || '').trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  return legacyServiceIconPathMap.get(trimmed) || trimmed;
+};
 
 const sanitizeServicePayload = (payload = {}) => {
   const id = String(payload.id || '')
@@ -394,7 +424,7 @@ const sanitizeServicePayload = (payload = {}) => {
     .replace(/^-+|-+$/g, '');
 
   const name = String(payload.name || '').trim();
-  const icon = String(payload.icon || '').trim();
+  const icon = normalizeServiceIconPath(payload.icon);
   const fallback = String(payload.fallback || '').trim();
   const color = String(payload.color || '#0b2d22').trim() || '#0b2d22';
   const category = String(payload.category || 'general').trim() || 'general';
@@ -437,6 +467,91 @@ const sanitizeServicePayload = (payload = {}) => {
     inputs,
     plans
   };
+};
+
+const readServiceCatalogSnapshot = () => {
+  try {
+    if (!fs.existsSync(SERVICES_FILE_PATH)) {
+      return [];
+    }
+
+    const raw = fs.readFileSync(SERVICES_FILE_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((service) => sanitizeServicePayload(service)) : [];
+  } catch (error) {
+    console.error('Unable to read services snapshot:', error);
+    return [];
+  }
+};
+
+const persistServiceCatalogSnapshot = (services = []) => {
+  try {
+    fs.mkdirSync(path.dirname(SERVICES_FILE_PATH), { recursive: true });
+    fs.writeFileSync(
+      SERVICES_FILE_PATH,
+      JSON.stringify(services.map((service) => sanitizeServicePayload(service)), null, 2)
+    );
+  } catch (error) {
+    console.error('Unable to persist services snapshot:', error);
+  }
+};
+
+const listServicesFromDatabase = async () => {
+  const services = await Service.find().sort({ createdAt: 1, name: 1 }).lean();
+  return services.map((service) => sanitizeServicePayload(service));
+};
+
+const ensureServiceCatalogSeeded = async () => {
+  if (serviceCatalogSeeded) {
+    return;
+  }
+
+  const count = await Service.countDocuments();
+
+  if (count === 0) {
+    const seedServices = readServiceCatalogSnapshot();
+    if (seedServices.length > 0) {
+      await Service.insertMany(seedServices, { ordered: false });
+      persistServiceCatalogSnapshot(seedServices);
+    }
+    serviceCatalogSeeded = true;
+    return;
+  }
+
+  const services = await Service.find();
+  let changed = false;
+
+  for (const service of services) {
+    const normalized = sanitizeServicePayload(service.toJSON());
+    const serviceChanged =
+      normalized.icon !== (service.icon || '') ||
+      normalized.fallback !== (service.fallback || '') ||
+      normalized.color !== (service.color || '') ||
+      normalized.category !== (service.category || '') ||
+      normalized.popular !== Boolean(service.popular) ||
+      normalized.requiresCredentials !== Boolean(service.requiresCredentials) ||
+      JSON.stringify(normalized.inputs) !== JSON.stringify(service.inputs || []) ||
+      JSON.stringify(normalized.plans) !== JSON.stringify(service.plans || []);
+
+    if (!serviceChanged) {
+      continue;
+    }
+
+    Object.assign(service, normalized);
+    await service.save();
+    changed = true;
+  }
+
+  if (changed) {
+    persistServiceCatalogSnapshot(await listServicesFromDatabase());
+  }
+
+  serviceCatalogSeeded = true;
+};
+
+const loadServiceCatalog = async () => {
+  await ensureServiceCatalogSeeded();
+  return listServicesFromDatabase();
 };
 
 const normalizeFormatStyle = (value) =>
@@ -1131,7 +1246,7 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Service and plan are required' });
     }
 
-    const catalog = loadServiceCatalog();
+    const catalog = await loadServiceCatalog();
     const selectedService = catalog.find((item) => item.id === service.id);
     if (!selectedService) {
       return res.status(400).json({ success: false, message: 'Selected service was not found' });
@@ -1174,10 +1289,6 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
         plan_name: selectedPlan.name
       }
     };
-
-    if (req.user.phone && !String(req.user.phone).startsWith('tg-')) {
-      checkoutPayload.phone_number = req.user.phone;
-    }
 
     const chapaResponse = await fetch(`${CHAPA_API_BASE}/transaction/initialize`, {
       method: 'POST',
@@ -1246,7 +1357,7 @@ app.post('/api/orders/create', requireUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Service and plan are required' });
     }
 
-    const catalog = loadServiceCatalog();
+    const catalog = await loadServiceCatalog();
     const selectedService = catalog.find((item) => item.id === service.id);
     const selectedPlan = selectedService?.plans.find((item) => item.name === plan.name);
     if (!selectedService || !selectedPlan) {
@@ -1302,8 +1413,12 @@ app.get('/api/orders/user', requireUser, async (req, res, next) => {
   }
 });
 
-app.get('/api/services', (req, res) => {
-  res.json({ success: true, services: loadServiceCatalog() });
+app.get('/api/services', async (req, res, next) => {
+  try {
+    res.json({ success: true, services: await loadServiceCatalog() });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/notifications', requireUser, async (req, res, next) => {
@@ -1511,58 +1626,74 @@ app.get('/api/admin/users', requireAdmin, async (req, res, next) => {
   }
 });
 
-app.get('/api/admin/services', requireAdmin, (req, res) => {
-  res.json({ success: true, services: loadServiceCatalog() });
+app.get('/api/admin/services', requireAdmin, async (req, res, next) => {
+  try {
+    res.json({ success: true, services: await loadServiceCatalog() });
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.post('/api/admin/services', requireAdmin, (req, res, next) => {
+app.post('/api/admin/services', requireAdmin, async (req, res, next) => {
   try {
-    const services = loadServiceCatalog();
+    await ensureServiceCatalogSeeded();
     const service = sanitizeServicePayload(req.body);
 
-    if (services.some((item) => item.id === service.id)) {
+    const existing = await Service.findOne({ id: service.id }).select('_id').lean();
+    if (existing) {
       return res.status(400).json({ success: false, message: 'A service with that id already exists' });
     }
 
-    saveServiceCatalog([...services, service]);
-    res.json({ success: true, service });
+    const created = await Service.create(service);
+    persistServiceCatalogSnapshot(await listServicesFromDatabase());
+    res.json({ success: true, service: sanitizeServicePayload(created.toJSON()) });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message || 'Invalid service payload' });
   }
 });
 
-app.put('/api/admin/services/:serviceId', requireAdmin, (req, res, next) => {
+app.put('/api/admin/services/:serviceId', requireAdmin, async (req, res, next) => {
   try {
-    const services = loadServiceCatalog();
-    const existingIndex = services.findIndex((item) => item.id === req.params.serviceId);
-    if (existingIndex === -1) {
+    await ensureServiceCatalogSeeded();
+    const existing = await Service.findOne({ id: req.params.serviceId });
+    if (!existing) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
 
     const service = sanitizeServicePayload(req.body);
-    const duplicate = services.find((item, index) => item.id === service.id && index !== existingIndex);
+    const duplicate = await Service.findOne({
+      id: service.id,
+      _id: { $ne: existing._id }
+    })
+      .select('_id')
+      .lean();
+
     if (duplicate) {
       return res.status(400).json({ success: false, message: 'Another service already uses that id' });
     }
 
-    services[existingIndex] = service;
-    saveServiceCatalog(services);
-    res.json({ success: true, service });
+    Object.assign(existing, service);
+    await existing.save();
+    persistServiceCatalogSnapshot(await listServicesFromDatabase());
+    res.json({ success: true, service: sanitizeServicePayload(existing.toJSON()) });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message || 'Invalid service payload' });
   }
 });
 
-app.delete('/api/admin/services/:serviceId', requireAdmin, (req, res) => {
-  const services = loadServiceCatalog();
-  const nextServices = services.filter((item) => item.id !== req.params.serviceId);
+app.delete('/api/admin/services/:serviceId', requireAdmin, async (req, res, next) => {
+  try {
+    await ensureServiceCatalogSeeded();
+    const deleted = await Service.findOneAndDelete({ id: req.params.serviceId }).lean();
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Service not found' });
+    }
 
-  if (nextServices.length === services.length) {
-    return res.status(404).json({ success: false, message: 'Service not found' });
+    persistServiceCatalogSnapshot(await listServicesFromDatabase());
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
   }
-
-  saveServiceCatalog(nextServices);
-  res.json({ success: true });
 });
 
 app.get('/api/admin/orders', requireAdmin, async (req, res, next) => {
@@ -1727,6 +1858,7 @@ app.get('/api/admin/stats', requireAdmin, async (req, res, next) => {
     const paid = orders.filter((order) => order.paymentStatus === 'paid').length;
     const processing = orders.filter((order) => order.status === 'processing').length;
     const completed = orders.filter((order) => order.status === 'completed').length;
+    const users = await User.countDocuments();
     const revenue = orders
       .filter((order) => order.paymentStatus === 'paid')
       .reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
@@ -1739,6 +1871,7 @@ app.get('/api/admin/stats', requireAdmin, async (req, res, next) => {
         paid,
         processing,
         completed,
+        users,
         revenue
       }
     });
@@ -1805,8 +1938,9 @@ app.use((error, req, res, next) => {
 
 mongoose
   .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/dinkpay')
-  .then(() => {
+  .then(async () => {
     console.log('MongoDB connected');
+    await ensureServiceCatalogSeeded();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
