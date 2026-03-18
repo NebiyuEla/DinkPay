@@ -2,9 +2,11 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import BrandIcon from './BrandIcon';
 import { buildServiceTheme } from '../utils/serviceSurface';
+import { getServiceDiscountPercent } from '../utils/pricing';
 
 const ServiceCard = ({ service, onClick }) => {
   const theme = buildServiceTheme(service.color);
+  const discountPercent = getServiceDiscountPercent(service);
 
   return (
     <motion.button
@@ -27,15 +29,36 @@ const ServiceCard = ({ service, onClick }) => {
         overflow: 'hidden'
       }}
       onClick={onClick}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
+      >
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
           background: theme.overlay,
           pointerEvents: 'none'
-        }}
-      />
+          }}
+        />
+
+        {discountPercent > 0 ? (
+          <div
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              zIndex: 2,
+              padding: '6px 10px',
+              borderRadius: '999px',
+              background: 'rgba(4,10,22,0.78)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: '#49FA84',
+              fontSize: '11px',
+              fontWeight: 800,
+              letterSpacing: '0.04em'
+            }}
+          >
+            {discountPercent}% OFF
+          </div>
+        ) : null}
 
       <div
         style={{

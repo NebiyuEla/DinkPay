@@ -3,11 +3,13 @@ import { motion } from 'framer-motion';
 import BrandIcon from '../components/BrandIcon';
 import { buildServiceTheme } from '../utils/serviceSurface';
 import { formatEtb } from '../utils/format';
+import { getServiceDiscountPercent } from '../utils/pricing';
 
 const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
   const [selectedPlanIndex, setSelectedPlanIndex] = useState(0);
   const serviceTheme = useMemo(() => buildServiceTheme(service.color), [service.color]);
   const isManualContactService = service?.id === 'others-application-fee';
+  const serviceDiscountPercent = getServiceDiscountPercent(service);
   const manualPaymentItems = useMemo(
     () => [
       'Application fee payments',
@@ -115,6 +117,26 @@ const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
                 ? 'We handle special manual payments through DINK Pay admin. Contact us directly and we will guide the payment.'
                 : 'Choose your plan and keep moving. The next step takes you straight to the account details and payment.'}
             </p>
+            {!isManualContactService && serviceDiscountPercent > 0 ? (
+              <div
+                style={{
+                  marginTop: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '7px 12px',
+                  borderRadius: '999px',
+                  background: 'rgba(73,250,132,0.12)',
+                  border: '1px solid rgba(73,250,132,0.24)',
+                  color: '#7dffb4',
+                  fontSize: '12px',
+                  fontWeight: 700
+                }}
+              >
+                <i className="fas fa-tags"></i>
+                {serviceDiscountPercent}% off on every plan
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -214,7 +236,14 @@ const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
                         </span>
                       ) : null}
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#49FA84' }}>Pay {formatEtb(plan.price)}</div>
+                    <div style={{ display: 'grid', gap: '4px' }}>
+                      {plan.hasDiscount && plan.originalPrice > plan.price ? (
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', textDecoration: 'line-through' }}>
+                          {formatEtb(plan.originalPrice)}
+                        </div>
+                      ) : null}
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#49FA84' }}>Pay {formatEtb(plan.price)}</div>
+                    </div>
                   </motion.button>
                 );
               })}

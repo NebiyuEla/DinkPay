@@ -89,11 +89,13 @@ const orderSchema = new mongoose.Schema(
       name: String,
       icon: String,
       fallback: String,
-      color: String
+      color: String,
+      discountPercent: Number
     },
     plan: {
       name: String,
-      price: Number
+      price: Number,
+      originalPrice: Number
     },
     credentials: {
       type: Map,
@@ -160,6 +162,7 @@ const serviceSchema = new mongoose.Schema(
     color: String,
     category: String,
     sortOrder: { type: Number, default: 999 },
+    discountPercent: { type: Number, default: 0 },
     popular: { type: Boolean, default: false },
     requiresCredentials: { type: Boolean, default: false },
     inputs: { type: [serviceInputSchema], default: [] },
@@ -481,6 +484,30 @@ const parseMoneyValue = (value) => {
   return Number.isFinite(parsed) ? parsed : NaN;
 };
 
+const normalizeDiscountPercent = (value, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(99, Math.max(0, Math.round(parsed * 100) / 100));
+};
+
+const applyDiscountToAmount = (amount, discountPercent = 0) => {
+  const numericAmount = parseMoneyValue(amount);
+  const normalizedDiscount = normalizeDiscountPercent(discountPercent, 0);
+
+  if (!Number.isFinite(numericAmount)) {
+    return NaN;
+  }
+
+  if (normalizedDiscount <= 0) {
+    return numericAmount;
+  }
+
+  return Math.max(0.01, Math.round(numericAmount * (1 - normalizedDiscount / 100) * 100) / 100);
+};
+
 const normalizeServiceSortOrder = (value, fallback = 999) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -512,6 +539,7 @@ const sanitizeServicePayload = (payload = {}) => {
   const color = String(payload.color || '#0b2d22').trim() || '#0b2d22';
   const category = String(payload.category || 'general').trim() || 'general';
   const sortOrder = normalizeServiceSortOrder(payload.sortOrder ?? payload.displayOrder ?? payload.order, 999);
+  const discountPercent = normalizeDiscountPercent(payload.discountPercent ?? payload.discount ?? payload.salePercent, 0);
   const popular = normalizeBoolean(payload.popular);
   const requiresCredentials = normalizeBoolean(payload.requiresCredentials);
 
@@ -547,6 +575,7 @@ const sanitizeServicePayload = (payload = {}) => {
     color,
     category,
     sortOrder,
+    discountPercent,
     popular,
     requiresCredentials,
     inputs,
@@ -635,6 +664,7 @@ const ensureServiceCatalogSeeded = async () => {
       normalized.color !== (service.color || '') ||
       normalized.category !== (service.category || '') ||
       normalized.sortOrder !== normalizeServiceSortOrder(service.sortOrder, index + 1) ||
+      normalized.discountPercent !== normalizeDiscountPercent(service.discountPercent, 0) ||
       normalized.popular !== Boolean(service.popular) ||
       normalized.requiresCredentials !== Boolean(service.requiresCredentials) ||
       JSON.stringify(normalized.inputs) !== JSON.stringify(service.inputs || []) ||
@@ -1359,10 +1389,7 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Selected service was not found' });
     }
 
-    const requestedPlanPrice = parseMoneyValue(plan.price);
-    const selectedPlan = selectedService.plans.find(
-      (item) => item.name === plan.name && parseMoneyValue(item.price) === requestedPlanPrice
-    );
+    const selectedPlan = selectedService.plans.find((item) => item.name === plan.name);
     if (!selectedPlan) {
       return res.status(400).json({ success: false, message: 'Selected plan was not found' });
     }
@@ -1371,7 +1398,8 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
       return res.status(500).json({ success: false, message: 'Chapa is not configured on the server' });
     }
 
-    const checkoutAmount = parseMoneyValue(selectedPlan.price);
+    const originalPlanPrice = parseMoneyValue(selectedPlan.price);
+    const checkoutAmount = applyDiscountToAmount(originalPlanPrice, selectedService.discountPercent);
     if (!Number.isFinite(checkoutAmount) || checkoutAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Selected plan price is invalid' });
     }
@@ -1446,11 +1474,13 @@ app.post('/api/orders/checkout', requireUser, async (req, res, next) => {
         name: selectedService.name,
         icon: selectedService.icon,
         fallback: selectedService.fallback,
-        color: selectedService.color
+        color: selectedService.color,
+        discountPercent: normalizeDiscountPercent(selectedService.discountPercent, 0)
       },
       plan: {
         name: selectedPlan.name,
-        price: checkoutAmount
+        price: checkoutAmount,
+        originalPrice: originalPlanPrice
       },
       credentials,
       totalAmount: checkoutAmount,
@@ -1489,8 +1519,9 @@ app.post('/api/orders/create', requireUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Selected service or plan was not found' });
     }
 
-    const orderAmount = parseMoneyValue(totalAmount || selectedPlan.price);
     const selectedPlanPrice = parseMoneyValue(selectedPlan.price);
+    const discountedPlanPrice = applyDiscountToAmount(selectedPlanPrice, selectedService.discountPercent);
+    const orderAmount = discountedPlanPrice;
 
     const order = await Order.create({
       orderId: generateOrderId(),
@@ -1505,11 +1536,13 @@ app.post('/api/orders/create', requireUser, async (req, res, next) => {
         name: selectedService.name,
         icon: selectedService.icon,
         fallback: selectedService.fallback,
-        color: selectedService.color
+        color: selectedService.color,
+        discountPercent: normalizeDiscountPercent(selectedService.discountPercent, 0)
       },
       plan: {
         name: selectedPlan.name,
-        price: Number.isFinite(selectedPlanPrice) ? selectedPlanPrice : 0
+        price: Number.isFinite(discountedPlanPrice) ? discountedPlanPrice : 0,
+        originalPrice: Number.isFinite(selectedPlanPrice) ? selectedPlanPrice : 0
       },
       credentials,
       totalAmount: Number.isFinite(orderAmount) ? orderAmount : 0,

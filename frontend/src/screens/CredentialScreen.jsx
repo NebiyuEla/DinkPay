@@ -98,8 +98,15 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
             <p style={{ margin: '6px 0 0', color: serviceTheme.secondaryText, fontSize: '13px' }}>
               {plan.name} plan
             </p>
-            <div style={{ marginTop: '10px', fontSize: '14px', fontWeight: 700, color: serviceTheme.accentText }}>
-              Pay {formatEtb(plan.price)}
+            <div style={{ marginTop: '10px', display: 'grid', gap: '4px' }}>
+              {plan.hasDiscount && plan.originalPrice > plan.price ? (
+                <div style={{ fontSize: '12px', color: serviceTheme.secondaryText, textDecoration: 'line-through' }}>
+                  {formatEtb(plan.originalPrice)}
+                </div>
+              ) : null}
+              <div style={{ fontSize: '14px', fontWeight: 700, color: serviceTheme.accentText }}>
+                Pay {formatEtb(plan.price)}
+              </div>
             </div>
           </div>
         </div>
@@ -177,7 +184,14 @@ const CredentialScreen = ({ service, plan, onBack, onSubmit }) => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
             <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>Amount</span>
-            <strong style={{ color: '#49FA84' }}>{formatEtb(plan.price)}</strong>
+            <div style={{ textAlign: 'right' }}>
+              {plan.hasDiscount && plan.originalPrice > plan.price ? (
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.42)', textDecoration: 'line-through', marginBottom: '2px' }}>
+                  {formatEtb(plan.originalPrice)}
+                </div>
+              ) : null}
+              <strong style={{ color: '#49FA84' }}>{formatEtb(plan.price)}</strong>
+            </div>
           </div>
         </div>
 

@@ -885,6 +885,13 @@
       line-height: 1.6;
     }
 
+    .field-help {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
     .service-editor {
       display: grid;
       gap: 16px;
@@ -1290,6 +1297,11 @@
                 <input class="field" id="serviceCategoryField" placeholder="social">
               </div>
               <div>
+                <label class="field-label" for="serviceDiscountField">Discount (%)</label>
+                <input class="field" id="serviceDiscountField" type="number" min="0" max="99" step="1" placeholder="0">
+                <div class="field-help">Set 0 to remove the discount. The percent stays active until you change it.</div>
+              </div>
+              <div>
                 <label class="field-label" for="servicePopularField">Popular</label>
                 <select id="servicePopularField">
                   <option value="true">Yes</option>
@@ -1472,6 +1484,7 @@
     const serviceFallbackField = document.getElementById('serviceFallbackField');
     const serviceColorField = document.getElementById('serviceColorField');
     const serviceCategoryField = document.getElementById('serviceCategoryField');
+    const serviceDiscountField = document.getElementById('serviceDiscountField');
     const serviceOrderField = document.getElementById('serviceOrderField');
     const servicePopularField = document.getElementById('servicePopularField');
     const serviceCredentialsField = document.getElementById('serviceCredentialsField');
@@ -1564,6 +1577,7 @@
       serviceFallbackField.value = '';
       serviceColorField.value = '#0b2d22';
       serviceCategoryField.value = 'general';
+      serviceDiscountField.value = '0';
       serviceOrderField.value = String(allServices.length + 1 || 1);
       servicePopularField.value = 'false';
       serviceCredentialsField.value = 'false';
@@ -1587,6 +1601,7 @@
       serviceFallbackField.value = service.fallback || '';
       serviceColorField.value = service.color || '#0b2d22';
       serviceCategoryField.value = service.category || 'general';
+      serviceDiscountField.value = String(service.discountPercent || 0);
       serviceOrderField.value = String(service.sortOrder || '');
       servicePopularField.value = String(Boolean(service.popular));
       serviceCredentialsField.value = String(Boolean(service.requiresCredentials));
@@ -1616,6 +1631,7 @@
       color: service.color,
       category: service.category,
       sortOrder: overrides.sortOrder ?? service.sortOrder,
+      discountPercent: overrides.discountPercent ?? service.discountPercent,
       popular: Boolean(service.popular),
       requiresCredentials: Boolean(service.requiresCredentials),
       plans: service.plans || [],
@@ -1646,7 +1662,7 @@
                 <div class="service-copy">
                   <strong>${escapeHtml(service.name)}</strong>
                   <span>Homepage slot ${index + 1} • ${escapeHtml(service.id)}</span>
-                  <span>${service.plans?.length || 0} plan(s)</span>
+                  <span>${Number(service.discountPercent || 0) > 0 ? `${escapeHtml(String(service.discountPercent))}% off active • ` : ''}${service.plans?.length || 0} plan(s)</span>
                 </div>
               </button>
               <div class="service-tools">
@@ -2479,6 +2495,7 @@
           fallback: serviceFallbackField.value.trim(),
           color: serviceColorField.value.trim(),
           category: serviceCategoryField.value.trim(),
+          discountPercent: serviceDiscountField.value.trim(),
           sortOrder: serviceOrderField.value.trim(),
           popular: servicePopularField.value === 'true',
           requiresCredentials: serviceCredentialsField.value === 'true',

@@ -18,6 +18,7 @@ import TermsScreen from './screens/TermsScreen';
 import { API_URL } from './config';
 import { services as fallbackServices } from './data/services';
 import { TERMS_VERSION_KEY } from './data/legal';
+import { applyServiceDiscounts } from './utils/pricing';
 
 const normalizeUiMessage = (value, fallback) => {
   if (typeof value === 'string' && value.trim()) {
@@ -61,19 +62,21 @@ const readApiPayload = async (response, fallbackMessage) => {
 
 const userNeedsTermsAcceptance = (userData) => userData?.termsAcceptedVersion !== TERMS_VERSION_KEY;
 const sortServicesByOrder = (services = []) =>
-  services
-    .map((service, index) => ({ service, index }))
-    .sort((left, right) => {
-      const leftOrder = Number.isFinite(Number(left.service?.sortOrder)) ? Number(left.service.sortOrder) : Number.MAX_SAFE_INTEGER;
-      const rightOrder = Number.isFinite(Number(right.service?.sortOrder)) ? Number(right.service.sortOrder) : Number.MAX_SAFE_INTEGER;
+  applyServiceDiscounts(
+    services
+      .map((service, index) => ({ service, index }))
+      .sort((left, right) => {
+        const leftOrder = Number.isFinite(Number(left.service?.sortOrder)) ? Number(left.service.sortOrder) : Number.MAX_SAFE_INTEGER;
+        const rightOrder = Number.isFinite(Number(right.service?.sortOrder)) ? Number(right.service.sortOrder) : Number.MAX_SAFE_INTEGER;
 
-      if (leftOrder !== rightOrder) {
-        return leftOrder - rightOrder;
-      }
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
 
-      return left.index - right.index;
-    })
-    .map(({ service }) => service);
+        return left.index - right.index;
+      })
+      .map(({ service }) => service)
+  );
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('splash');

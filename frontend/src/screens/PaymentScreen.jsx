@@ -34,10 +34,13 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
     () => [
       { label: 'Service', value: service.name },
       { label: 'Plan', value: plan.name },
+      ...(plan.hasDiscount && plan.originalPrice > plan.price
+        ? [{ label: 'Discount', value: `${service.discountPercent}% off` }]
+        : []),
       { label: 'Credentials', value: credentialCount > 0 ? `${credentialCount} field${credentialCount === 1 ? '' : 's'}` : 'No extra fields' },
       { label: 'Payment', value: 'ETB secure checkout' }
     ],
-    [credentialCount, plan.name, service.name]
+    [credentialCount, plan.hasDiscount, plan.name, plan.originalPrice, plan.price, service.discountPercent, service.name]
   );
 
   const handleChapaPayment = async () => {
@@ -164,8 +167,15 @@ const PaymentScreen = ({ service, plan, pendingCredentials, onBack }) => {
             <p style={{ margin: '6px 0 0', color: serviceTheme.secondaryText, fontSize: '13px' }}>
               {plan.name} plan
             </p>
-            <div style={{ marginTop: '10px', color: serviceTheme.accentText, fontSize: '16px', fontWeight: 800 }}>
-              Pay {formatEtb(plan.price)}
+            <div style={{ marginTop: '10px', display: 'grid', gap: '4px' }}>
+              {plan.hasDiscount && plan.originalPrice > plan.price ? (
+                <div style={{ fontSize: '12px', color: serviceTheme.secondaryText, textDecoration: 'line-through' }}>
+                  {formatEtb(plan.originalPrice)}
+                </div>
+              ) : null}
+              <div style={{ color: serviceTheme.accentText, fontSize: '16px', fontWeight: 800 }}>
+                Pay {formatEtb(plan.price)}
+              </div>
             </div>
           </div>
         </div>
