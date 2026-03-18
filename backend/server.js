@@ -27,6 +27,7 @@ const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 24;
 const CHAPA_PENDING_GRACE_MS = 1000 * 60 * 5;
 const BOT_SYNC_TOKEN = process.env.BOT_SYNC_TOKEN || 'local-dink-bot-sync';
 const ENABLE_DIRECT_TELEGRAM_PUSH = process.env.DIRECT_TELEGRAM_PUSH !== 'false';
+const ORDER_ALERT_ADMIN_TELEGRAM_ID = String(process.env.ORDER_ALERT_ADMIN_TELEGRAM_ID || '626003565').trim();
 const BOT_SCRIPT_PATH = path.join(workspaceRoot, 'DinkPayment.py');
 const SERVICES_FILE_PATH = path.join(workspaceRoot, 'backend', 'data', 'services.json');
 const UPLOADS_DIR = path.join(workspaceRoot, 'backend', 'uploads');
@@ -911,6 +912,29 @@ const sendTelegramBotMessage = async ({
   }
 };
 
+const notifyAdminPaidOrder = async (order, source = 'payment') => {
+  if (!ORDER_ALERT_ADMIN_TELEGRAM_ID || !order) {
+    return false;
+  }
+
+  const customerName = order.user?.fullName || 'Unknown customer';
+  const serviceName = order.service?.name || 'Unknown service';
+  const planName = order.plan?.name || 'Plan not set';
+  const amount = `${Number(order.totalAmount || order.plan?.price || 0).toLocaleString()} ETB`;
+  const orderRef = order.orderId || 'No order id';
+  const txRef = order.transactionId || 'No tx ref';
+  const paidAt = order.paidAt ? new Date(order.paidAt).toLocaleString('en-US', { hour12: true }) : 'Just now';
+  const sourceLabel = source === 'admin' ? 'Marked paid by admin' : 'Paid via Chapa';
+
+  return sendTelegramBotMessage({
+    telegramId: ORDER_ALERT_ADMIN_TELEGRAM_ID,
+    title: 'Paid order received',
+    message: `${sourceLabel}\nCustomer: ${customerName}\nService: ${serviceName}\nPlan: ${planName}\nAmount: ${amount}\nOrder ID: ${orderRef}\nTransaction: ${txRef}\nPaid at: ${paidAt}\nPlease deliver the service.`,
+    type: 'success',
+    formatStyle: 'bold'
+  });
+};
+
 const createNotification = async ({
   userId,
   title,
@@ -1115,6 +1139,7 @@ const syncOrderPaymentStatus = async (txRef) => {
         message: `We have confirmed your payment for ${order.service?.name || 'your order'}. Admin will now process it.`,
         type: 'success'
       });
+      await notifyAdminPaidOrder(order, 'chapa');
     }
   } else if (paymentState === 'failed') {
     const wasFailed = order.paymentStatus === 'failed';
@@ -2064,6 +2089,7 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req, res, next) => {
       if (paymentStatus === 'paid') {
         messages.push(`Your payment for ${order.service?.name || 'your order'} has been marked as paid.`);
         notificationType = 'success';
+        await notifyAdminPaidOrder(order, 'admin');
       } else if (paymentStatus === 'failed') {
         messages.push(`We could not confirm payment for ${order.service?.name || 'your order'}.`);
         notificationType = 'error';
