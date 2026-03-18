@@ -617,6 +617,13 @@ const ensureServiceCatalogSeeded = async () => {
   const services = await Service.find().sort({ createdAt: 1, name: 1 });
   let changed = false;
 
+  const existingServiceIds = new Set(services.map((service) => service.id));
+  const missingServices = snapshotServices.filter((service) => !existingServiceIds.has(service.id));
+  if (missingServices.length > 0) {
+    await Service.insertMany(missingServices, { ordered: false });
+    changed = true;
+  }
+
   for (const [index, service] of services.entries()) {
     const normalized = sanitizeServicePayload({
       ...service.toJSON(),

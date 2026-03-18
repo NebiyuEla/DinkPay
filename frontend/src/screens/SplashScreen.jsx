@@ -44,9 +44,14 @@ const SplashScreen = ({ onComplete }) => {
         <span style={{ color: '#49FA84' }}>DINK</span>{' '}
         <span style={{ color: '#F2F3F5' }}>PAY</span>
       </h1>
-      <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>
-        Premium Digital Payments
-      </p>
+      <div style={{ display: 'grid', gap: '4px', justifyItems: 'center' }}>
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.58)', margin: 0 }}>
+          Digital Service provider
+        </p>
+        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', margin: 0 }}>
+          Since March 11 2024
+        </p>
+      </div>
     </motion.div>
   );
 };

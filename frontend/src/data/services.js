@@ -311,6 +311,20 @@ export const services = [
       { name: '2500 Likes', price: 3898 },
       { name: '6500 Likes', price: 8948 }
     ]
+  },
+  {
+    id: 'others-application-fee',
+    name: 'Others (Application Fee)',
+    icon: '/icons/others.svg',
+    fallback: 'OF',
+    color: '#D8A53B',
+    category: 'others',
+    popular: true,
+    requiresCredentials: false,
+    inputs: [],
+    plans: [
+      { name: 'Contact Admin', price: 1 }
+    ]
   }
 ];
 

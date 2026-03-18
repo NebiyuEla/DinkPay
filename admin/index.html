@@ -761,10 +761,29 @@
       align-items: start;
     }
 
+    .service-order-panel {
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      padding: 18px;
+    }
+
+    .service-order-panel h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .service-order-copy {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
     .service-list {
       display: grid;
       gap: 12px;
-      max-height: 760px;
+      max-height: 680px;
       overflow: auto;
       padding-right: 4px;
     }
@@ -828,22 +847,32 @@
     .service-tools {
       display: grid;
       gap: 8px;
+      justify-items: end;
     }
 
     .service-tool {
-      width: 38px;
-      height: 38px;
+      min-width: 116px;
+      min-height: 40px;
       border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.08);
       background: rgba(255, 255, 255, 0.05);
       color: var(--text);
-      display: grid;
-      place-items: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 12px;
+      font-weight: 700;
+      font-size: 13px;
     }
 
     .service-tool:disabled {
       opacity: 0.35;
       cursor: not-allowed;
+    }
+
+    .service-tool i {
+      font-size: 12px;
     }
 
     .service-order-hint {
@@ -1221,10 +1250,14 @@
         </div>
 
         <div class="service-layout">
-          <div id="serviceList" class="service-list">
-            <div class="loading-state">
-              <i class="fas fa-spinner fa-spin"></i>
-              <p>Loading services...</p>
+          <div class="service-order-panel">
+            <h3>Homepage arrangement</h3>
+            <p class="service-order-copy">Use the controls below to decide the exact order customers see on the mini app home page.</p>
+            <div id="serviceList" class="service-list">
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading services...</p>
+              </div>
             </div>
           </div>
 
@@ -1274,7 +1307,7 @@
 
             <input id="serviceOrderField" type="hidden">
             <div class="service-order-hint">
-              Use the arrows in the service list to control homepage order. The top card becomes position 1 on the mini app home page.
+              Homepage order is controlled from the left panel. Move the cards up or down until the order matches the mini app exactly.
             </div>
 
             <div>
@@ -1612,7 +1645,7 @@
                 <div class="service-rank">#${index + 1}</div>
                 <div class="service-copy">
                   <strong>${escapeHtml(service.name)}</strong>
-                  <span>${escapeHtml(service.id)} • ${escapeHtml(service.category || 'general')}</span>
+                  <span>Homepage slot ${index + 1} • ${escapeHtml(service.id)}</span>
                   <span>${service.plans?.length || 0} plan(s)</span>
                 </div>
               </button>
@@ -1625,6 +1658,7 @@
                   title="Move up"
                 >
                   <i class="fas fa-arrow-up"></i>
+                  <span>Move up</span>
                 </button>
                 <button
                   type="button"
@@ -1634,6 +1668,7 @@
                   title="Move down"
                 >
                   <i class="fas fa-arrow-down"></i>
+                  <span>Move down</span>
                 </button>
               </div>
             </div>

@@ -7,11 +7,35 @@ import { formatEtb } from '../utils/format';
 const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
   const [selectedPlanIndex, setSelectedPlanIndex] = useState(0);
   const serviceTheme = useMemo(() => buildServiceTheme(service.color), [service.color]);
+  const isManualContactService = service?.id === 'others-application-fee';
+  const manualPaymentItems = useMemo(
+    () => [
+      'Application fee payments',
+      'Udemy subscription payments',
+      'Italy insurance payments',
+      'Italy application fee payments',
+      'Italy Cimea payments',
+      'Other Italy-related payments',
+      'AliExpress, Shein, Amazon, Alibaba, and other online payments'
+    ],
+    []
+  );
 
   const selectedPlan = useMemo(
     () => service?.plans?.[selectedPlanIndex] || null,
     [service?.plans, selectedPlanIndex]
   );
+
+  const handleContactAdmin = () => {
+    const adminLink = 'https://t.me/dinkpayadmin';
+
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(adminLink);
+      return;
+    }
+
+    window.location.href = adminLink;
+  };
 
   return (
     <motion.div
@@ -87,81 +111,128 @@ const ServiceDetailScreen = ({ service, onBack, onSelectPlan }) => {
               {service.name}
             </h1>
             <p style={{ margin: '8px 0 0', color: serviceTheme.secondaryText, fontSize: '13px', lineHeight: 1.5 }}>
-              Choose your plan and keep moving. The next step takes you straight to the account details and payment.
+              {isManualContactService
+                ? 'We handle special manual payments through DINK Pay admin. Contact us directly and we will guide the payment.'
+                : 'Choose your plan and keep moving. The next step takes you straight to the account details and payment.'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="glass-card" style={{ padding: '16px', marginBottom: '14px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
-          <div>
-            <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>Choose a plan</h2>
-            <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>
-              {service.plans.length} option{service.plans.length === 1 ? '' : 's'} available
+      {isManualContactService ? (
+        <div className="glass-card" style={{ padding: '18px', marginBottom: '14px' }}>
+          <div style={{ marginBottom: '14px' }}>
+            <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>We pay for these services</h2>
+            <p style={{ margin: '6px 0 0', color: 'rgba(255,255,255,0.58)', fontSize: '13px', lineHeight: 1.6 }}>
+              If your payment is not in the normal catalog, contact DINK Pay admin and we will handle it for you.
             </p>
           </div>
-        </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: service.plans.length === 1 ? '1fr' : 'repeat(2, minmax(0, 1fr))',
-            gap: '10px'
-          }}
-        >
-          {service.plans.map((plan, index) => {
-            const isSelected = selectedPlanIndex === index;
-
-            return (
-              <motion.button
-                type="button"
-                key={`${plan.name}-${plan.price}`}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setSelectedPlanIndex(index)}
+          <div style={{ display: 'grid', gap: '10px', marginBottom: '16px' }}>
+            {manualPaymentItems.map((item) => (
+              <div
+                key={item}
                 style={{
-                  borderRadius: '18px',
-                  border: isSelected ? '1px solid rgba(73,250,132,0.4)' : '1px solid rgba(255,255,255,0.06)',
-                  background: isSelected ? 'rgba(73,250,132,0.12)' : 'rgba(255,255,255,0.04)',
-                  color: 'white',
-                  textAlign: 'left',
-                  padding: '14px',
-                  cursor: 'pointer',
-                  minHeight: '100px'
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  borderRadius: '16px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  color: 'rgba(255,255,255,0.86)',
+                  lineHeight: 1.5,
+                  fontSize: '13px'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start', marginBottom: '14px' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.2 }}>{plan.name}</div>
-                    {plan.quality ? (
-                      <div style={{ marginTop: '6px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                        {plan.quality}
-                      </div>
-                    ) : null}
-                  </div>
-                  {isSelected ? (
-                    <span style={{ color: '#49FA84' }}>
-                      <i className="fas fa-circle-check"></i>
-                    </span>
-                  ) : null}
-                </div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#49FA84' }}>Pay {formatEtb(plan.price)}</div>
-              </motion.button>
-            );
-          })}
-        </div>
-      </div>
+                <span style={{ color: '#49FA84', marginTop: '1px' }}>
+                  <i className="fas fa-circle-check"></i>
+                </span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
 
-      {selectedPlan ? (
-        <div style={{ marginTop: '12px' }}>
           <button
             className="primary-button"
-            onClick={() => onSelectPlan(selectedPlan)}
+            onClick={handleContactAdmin}
           >
-            Continue to Checkout
+            Contact Admin @dinkpayadmin
           </button>
         </div>
-      ) : null}
+      ) : (
+        <>
+          <div className="glass-card" style={{ padding: '16px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+              <div>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>Choose a plan</h2>
+                <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>
+                  {service.plans.length} option{service.plans.length === 1 ? '' : 's'} available
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: service.plans.length === 1 ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                gap: '10px'
+              }}
+            >
+              {service.plans.map((plan, index) => {
+                const isSelected = selectedPlanIndex === index;
+
+                return (
+                  <motion.button
+                    type="button"
+                    key={`${plan.name}-${plan.price}`}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setSelectedPlanIndex(index)}
+                    style={{
+                      borderRadius: '18px',
+                      border: isSelected ? '1px solid rgba(73,250,132,0.4)' : '1px solid rgba(255,255,255,0.06)',
+                      background: isSelected ? 'rgba(73,250,132,0.12)' : 'rgba(255,255,255,0.04)',
+                      color: 'white',
+                      textAlign: 'left',
+                      padding: '14px',
+                      cursor: 'pointer',
+                      minHeight: '100px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start', marginBottom: '14px' }}>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.2 }}>{plan.name}</div>
+                        {plan.quality ? (
+                          <div style={{ marginTop: '6px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                            {plan.quality}
+                          </div>
+                        ) : null}
+                      </div>
+                      {isSelected ? (
+                        <span style={{ color: '#49FA84' }}>
+                          <i className="fas fa-circle-check"></i>
+                        </span>
+                      ) : null}
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#49FA84' }}>Pay {formatEtb(plan.price)}</div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          {selectedPlan ? (
+            <div style={{ marginTop: '12px' }}>
+              <button
+                className="primary-button"
+                onClick={() => onSelectPlan(selectedPlan)}
+              >
+                Continue to Checkout
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
     </motion.div>
   );
 };
