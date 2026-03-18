@@ -770,13 +770,11 @@
     }
 
     .service-item {
-      width: 100%;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 20px;
       background: rgba(255, 255, 255, 0.04);
       color: var(--text);
       padding: 16px;
-      text-align: left;
     }
 
     .service-item.active {
@@ -784,15 +782,78 @@
       background: rgba(125, 255, 180, 0.1);
     }
 
-    .service-item strong,
-    .service-item span {
+    .service-item-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .service-select {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 0;
+    }
+
+    .service-rank {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: rgba(125, 255, 180, 0.12);
+      border: 1px solid rgba(125, 255, 180, 0.18);
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .service-copy strong,
+    .service-copy span {
       display: block;
     }
 
-    .service-item span {
+    .service-copy span {
       margin-top: 6px;
       color: var(--muted);
       font-size: 13px;
+    }
+
+    .service-tools {
+      display: grid;
+      gap: 8px;
+    }
+
+    .service-tool {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+    }
+
+    .service-tool:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .service-order-hint {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(125, 255, 180, 0.14);
+      background: rgba(125, 255, 180, 0.08);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
     }
 
     .service-editor {
@@ -1196,10 +1257,6 @@
                 <input class="field" id="serviceCategoryField" placeholder="social">
               </div>
               <div>
-                <label class="field-label" for="serviceOrderField">Homepage order</label>
-                <input class="field" id="serviceOrderField" type="number" min="1" step="1" placeholder="1">
-              </div>
-              <div>
                 <label class="field-label" for="servicePopularField">Popular</label>
                 <select id="servicePopularField">
                   <option value="true">Yes</option>
@@ -1213,6 +1270,11 @@
                   <option value="true">Yes</option>
                 </select>
               </div>
+            </div>
+
+            <input id="serviceOrderField" type="hidden">
+            <div class="service-order-hint">
+              Use the arrows in the service list to control homepage order. The top card becomes position 1 on the mini app home page.
             </div>
 
             <div>
@@ -1330,6 +1392,7 @@
     let recipientSearchQuery = '';
     let refreshTimer = null;
     let editingServiceId = null;
+    let reorderingServiceId = '';
     let editingOrderId = null;
     let messageAttachmentPayload = null;
     let currentAdminPage = window.location.hash === '#services'
@@ -1512,6 +1575,20 @@
       }
     };
 
+    const buildServicePayload = (service, overrides = {}) => ({
+      id: service.id,
+      name: service.name,
+      icon: service.icon,
+      fallback: service.fallback,
+      color: service.color,
+      category: service.category,
+      sortOrder: overrides.sortOrder ?? service.sortOrder,
+      popular: Boolean(service.popular),
+      requiresCredentials: Boolean(service.requiresCredentials),
+      plans: service.plans || [],
+      inputs: service.inputs || []
+    });
+
     const renderServicesList = () => {
       if (!allServices.length) {
         serviceList.innerHTML = `
@@ -1524,18 +1601,98 @@
       }
 
       serviceList.innerHTML = allServices
-        .map((service) => `
-          <button
-            type="button"
-            class="service-item ${editingServiceId === service.id ? 'active' : ''}"
-            onclick="selectServiceEditor('${escapeHtml(service.id)}')"
-          >
-            <strong>${escapeHtml(service.name)}</strong>
-            <span>#${Number(service.sortOrder || 999).toLocaleString()} on homepage • ${escapeHtml(service.id)} • ${escapeHtml(service.category || 'general')}</span>
-            <span>${service.plans?.length || 0} plan(s)</span>
-          </button>
+        .map((service, index) => `
+          <article class="service-item ${editingServiceId === service.id ? 'active' : ''}">
+            <div class="service-item-head">
+              <button
+                type="button"
+                class="service-select"
+                onclick="selectServiceEditor('${escapeHtml(service.id)}')"
+              >
+                <div class="service-rank">#${index + 1}</div>
+                <div class="service-copy">
+                  <strong>${escapeHtml(service.name)}</strong>
+                  <span>${escapeHtml(service.id)} • ${escapeHtml(service.category || 'general')}</span>
+                  <span>${service.plans?.length || 0} plan(s)</span>
+                </div>
+              </button>
+              <div class="service-tools">
+                <button
+                  type="button"
+                  class="service-tool"
+                  onclick="moveService('${escapeHtml(service.id)}', -1)"
+                  ${index === 0 || reorderingServiceId ? 'disabled' : ''}
+                  title="Move up"
+                >
+                  <i class="fas fa-arrow-up"></i>
+                </button>
+                <button
+                  type="button"
+                  class="service-tool"
+                  onclick="moveService('${escapeHtml(service.id)}', 1)"
+                  ${index === allServices.length - 1 || reorderingServiceId ? 'disabled' : ''}
+                  title="Move down"
+                >
+                  <i class="fas fa-arrow-down"></i>
+                </button>
+              </div>
+            </div>
+          </article>
         `)
         .join('');
+    };
+
+    const moveService = async (serviceId, direction) => {
+      if (reorderingServiceId) {
+        return;
+      }
+
+      const currentIndex = allServices.findIndex((service) => service.id === serviceId);
+      const targetIndex = currentIndex + Number(direction);
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= allServices.length) {
+        return;
+      }
+
+      const reordered = [...allServices];
+      [reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[currentIndex]];
+      const nextServices = reordered.map((service, index) => ({
+        ...service,
+        sortOrder: index + 1
+      }));
+      const changedServices = nextServices.filter((service) => {
+        const original = allServices.find((item) => item.id === service.id);
+        return Number(original?.sortOrder || 0) !== Number(service.sortOrder || 0);
+      });
+
+      reorderingServiceId = serviceId;
+      allServices = nextServices;
+      renderServicesList();
+
+      if (editingServiceId) {
+        fillServiceForm(allServices.find((service) => service.id === editingServiceId));
+      }
+
+      try {
+        await Promise.all(
+          changedServices.map((service) =>
+            authFetch(`/admin/services/${encodeURIComponent(service.id)}`, {
+              method: 'PUT',
+              body: JSON.stringify(buildServicePayload(service))
+            })
+          )
+        );
+
+        showToast('Homepage order updated.');
+      } catch (error) {
+        showToast(error.message || 'Unable to update homepage order.', 'error');
+        await refreshDashboard(true);
+      } finally {
+        reorderingServiceId = '';
+        renderServicesList();
+        if (editingServiceId) {
+          fillServiceForm(allServices.find((service) => service.id === editingServiceId));
+        }
+      }
     };
 
     const showToast = (message, type = 'success') => {
@@ -2117,6 +2274,7 @@
     window.chooseRecipient = (value) => {
       renderRecipientOptions(value || 'all');
     };
+    window.moveService = moveService;
     window.openOrderEditor = openOrderEditor;
     window.closeOrderEditor = closeOrderEditor;
     window.selectRecipientForOrder = selectRecipientForOrder;
