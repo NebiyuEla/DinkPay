@@ -60,13 +60,27 @@ const readApiPayload = async (response, fallbackMessage) => {
 };
 
 const userNeedsTermsAcceptance = (userData) => userData?.termsAcceptedVersion !== TERMS_VERSION_KEY;
+const sortServicesByOrder = (services = []) =>
+  services
+    .map((service, index) => ({ service, index }))
+    .sort((left, right) => {
+      const leftOrder = Number.isFinite(Number(left.service?.sortOrder)) ? Number(left.service.sortOrder) : Number.MAX_SAFE_INTEGER;
+      const rightOrder = Number.isFinite(Number(right.service?.sortOrder)) ? Number(right.service.sortOrder) : Number.MAX_SAFE_INTEGER;
+
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ service }) => service);
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('splash');
   const [user, setUser] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [servicesCatalog, setServicesCatalog] = useState(fallbackServices);
+  const [servicesCatalog, setServicesCatalog] = useState(() => sortServicesByOrder(fallbackServices));
   const [orders, setOrders] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -139,7 +153,7 @@ function App() {
       const response = await fetch(`${API_URL}/services`);
       const data = await readApiPayload(response, 'Unable to load services right now.');
       if (data.success && Array.isArray(data.services) && data.services.length > 0) {
-        setServicesCatalog(data.services);
+        setServicesCatalog(sortServicesByOrder(data.services));
       }
     } catch (error) {
       console.error('Error loading services:', error);

@@ -1196,6 +1196,10 @@
                 <input class="field" id="serviceCategoryField" placeholder="social">
               </div>
               <div>
+                <label class="field-label" for="serviceOrderField">Homepage order</label>
+                <input class="field" id="serviceOrderField" type="number" min="1" step="1" placeholder="1">
+              </div>
+              <div>
                 <label class="field-label" for="servicePopularField">Popular</label>
                 <select id="servicePopularField">
                   <option value="true">Yes</option>
@@ -1372,6 +1376,7 @@
     const serviceFallbackField = document.getElementById('serviceFallbackField');
     const serviceColorField = document.getElementById('serviceColorField');
     const serviceCategoryField = document.getElementById('serviceCategoryField');
+    const serviceOrderField = document.getElementById('serviceOrderField');
     const servicePopularField = document.getElementById('servicePopularField');
     const serviceCredentialsField = document.getElementById('serviceCredentialsField');
     const servicePlansField = document.getElementById('servicePlansField');
@@ -1463,6 +1468,7 @@
       serviceFallbackField.value = '';
       serviceColorField.value = '#0b2d22';
       serviceCategoryField.value = 'general';
+      serviceOrderField.value = String(allServices.length + 1 || 1);
       servicePopularField.value = 'false';
       serviceCredentialsField.value = 'false';
       servicePlansField.value = formatJson([{ name: 'Monthly', price: 100 }]);
@@ -1485,6 +1491,7 @@
       serviceFallbackField.value = service.fallback || '';
       serviceColorField.value = service.color || '#0b2d22';
       serviceCategoryField.value = service.category || 'general';
+      serviceOrderField.value = String(service.sortOrder || '');
       servicePopularField.value = String(Boolean(service.popular));
       serviceCredentialsField.value = String(Boolean(service.requiresCredentials));
       servicePlansField.value = formatJson(service.plans);
@@ -1524,7 +1531,7 @@
             onclick="selectServiceEditor('${escapeHtml(service.id)}')"
           >
             <strong>${escapeHtml(service.name)}</strong>
-            <span>${escapeHtml(service.id)} • ${escapeHtml(service.category || 'general')}</span>
+            <span>#${Number(service.sortOrder || 999).toLocaleString()} on homepage • ${escapeHtml(service.id)} • ${escapeHtml(service.category || 'general')}</span>
             <span>${service.plans?.length || 0} plan(s)</span>
           </button>
         `)
@@ -2279,6 +2286,7 @@
           fallback: serviceFallbackField.value.trim(),
           color: serviceColorField.value.trim(),
           category: serviceCategoryField.value.trim(),
+          sortOrder: serviceOrderField.value.trim(),
           popular: servicePopularField.value === 'true',
           requiresCredentials: serviceCredentialsField.value === 'true',
           plans: parseJsonField(servicePlansField.value, 'Plans'),

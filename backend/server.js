@@ -159,6 +159,7 @@ const serviceSchema = new mongoose.Schema(
     fallback: String,
     color: String,
     category: String,
+    sortOrder: { type: Number, default: 999 },
     popular: { type: Boolean, default: false },
     requiresCredentials: { type: Boolean, default: false },
     inputs: { type: [serviceInputSchema], default: [] },
@@ -480,6 +481,15 @@ const parseMoneyValue = (value) => {
   return Number.isFinite(parsed) ? parsed : NaN;
 };
 
+const normalizeServiceSortOrder = (value, fallback = 999) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.round(parsed));
+};
+
 const normalizeServiceIconPath = (icon = '') => {
   const trimmed = String(icon || '').trim();
   if (!trimmed) {
@@ -501,6 +511,7 @@ const sanitizeServicePayload = (payload = {}) => {
   const fallback = String(payload.fallback || '').trim();
   const color = String(payload.color || '#0b2d22').trim() || '#0b2d22';
   const category = String(payload.category || 'general').trim() || 'general';
+  const sortOrder = normalizeServiceSortOrder(payload.sortOrder ?? payload.displayOrder ?? payload.order, 999);
   const popular = normalizeBoolean(payload.popular);
   const requiresCredentials = normalizeBoolean(payload.requiresCredentials);
 
@@ -535,6 +546,7 @@ const sanitizeServicePayload = (payload = {}) => {
     fallback: fallback || name.charAt(0).toUpperCase(),
     color,
     category,
+    sortOrder,
     popular,
     requiresCredentials,
     inputs,
@@ -550,7 +562,14 @@ const readServiceCatalogSnapshot = () => {
 
     const raw = fs.readFileSync(SERVICES_FILE_PATH, 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map((service) => sanitizeServicePayload(service)) : [];
+    return Array.isArray(parsed)
+      ? parsed.map((service, index) =>
+          sanitizeServicePayload({
+            ...service,
+            sortOrder: service?.sortOrder ?? service?.displayOrder ?? service?.order ?? index + 1
+          })
+        )
+      : [];
   } catch (error) {
     console.error('Unable to read services snapshot:', error);
     return [];
@@ -570,7 +589,7 @@ const persistServiceCatalogSnapshot = (services = []) => {
 };
 
 const listServicesFromDatabase = async () => {
-  const services = await Service.find().sort({ createdAt: 1, name: 1 }).lean();
+  const services = await Service.find().sort({ sortOrder: 1, createdAt: 1, name: 1 }).lean();
   return services.map((service) => sanitizeServicePayload(service));
 };
 
@@ -591,16 +610,24 @@ const ensureServiceCatalogSeeded = async () => {
     return;
   }
 
-  const services = await Service.find();
+  const snapshotServices = readServiceCatalogSnapshot();
+  const snapshotOrderMap = new Map(
+    snapshotServices.map((service, index) => [service.id, normalizeServiceSortOrder(service.sortOrder, index + 1)])
+  );
+  const services = await Service.find().sort({ createdAt: 1, name: 1 });
   let changed = false;
 
-  for (const service of services) {
-    const normalized = sanitizeServicePayload(service.toJSON());
+  for (const [index, service] of services.entries()) {
+    const normalized = sanitizeServicePayload({
+      ...service.toJSON(),
+      sortOrder: service.sortOrder ?? snapshotOrderMap.get(service.id) ?? index + 1
+    });
     const serviceChanged =
       normalized.icon !== (service.icon || '') ||
       normalized.fallback !== (service.fallback || '') ||
       normalized.color !== (service.color || '') ||
       normalized.category !== (service.category || '') ||
+      normalized.sortOrder !== normalizeServiceSortOrder(service.sortOrder, index + 1) ||
       normalized.popular !== Boolean(service.popular) ||
       normalized.requiresCredentials !== Boolean(service.requiresCredentials) ||
       JSON.stringify(normalized.inputs) !== JSON.stringify(service.inputs || []) ||
