@@ -307,7 +307,8 @@ function App() {
           telegramId: tgUser.id,
           firstName: tgUser.first_name,
           lastName: tgUser.last_name || '',
-          username: tgUser.username
+          username: tgUser.username,
+          startParam: tg.initDataUnsafe?.start_param || ''
         })
       });
 

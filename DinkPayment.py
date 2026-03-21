@@ -194,20 +194,25 @@ def update_payment_status(payment_id, status, admin_note=''):
 
     return True
 
-def fetch_backend_json(path, params=None):
+def backend_request_json(path, method="GET", params=None, payload=None):
     try:
-        response = requests.get(
+        response = requests.request(
+            method,
             f"{BACKEND_API_URL}{path}",
             headers={"x-bot-token": BOT_SYNC_TOKEN},
             params=params,
+            json=payload,
             timeout=10
         )
-        data = response.json()
+        data = response.json() if response.text else {}
         if response.ok and data.get("success"):
             return data
     except Exception as e:
-        print(f"Backend sync error: {e}")
+        print(f"Backend request error ({method} {path}): {e}")
     return None
+
+def fetch_backend_json(path, params=None):
+    return backend_request_json(path, params=params)
 
 def get_backend_user_services(user_id, limit=8):
     data = fetch_backend_json(f"/bot/users/{user_id}/orders", {"limit": limit})
@@ -216,6 +221,51 @@ def get_backend_user_services(user_id, limit=8):
 def get_backend_user_notifications(user_id, limit=8):
     data = fetch_backend_json(f"/bot/users/{user_id}/notifications", {"limit": limit})
     return data.get("notifications", []) if data else []
+
+def get_backend_user_access(user_id):
+    data = fetch_backend_json(f"/bot/users/{user_id}/access")
+    return data.get("access", {}) if data else {}
+
+def parse_start_param(text):
+    parts = str(text or "").split(maxsplit=1)
+    return parts[1].strip() if len(parts) > 1 else ""
+
+def register_bot_start_with_backend(message, start_param=""):
+    return backend_request_json(
+        f"/bot/users/{message.from_user.id}/start",
+        method="POST",
+        payload={
+            "username": message.from_user.username or "",
+            "firstName": message.from_user.first_name or "",
+            "lastName": message.from_user.last_name or "",
+            "startParam": start_param or ""
+        }
+    )
+
+def require_backend_access(message, allow_start=False):
+    user_id = message.from_user.id
+    access = get_backend_user_access(user_id)
+    if not access:
+        return True
+
+    if access.get("banned"):
+        reason = str(access.get("reason") or "").strip() or "Please contact @DinkPayAdmin for help."
+        bot.send_message(
+            user_id,
+            f"⛔ Access to the Dink Pay bot is currently blocked.\n\n{reason}",
+            reply_markup=get_main_keyboard()
+        )
+        return False
+
+    if access.get("startRequired") and not allow_start:
+        bot.send_message(
+            user_id,
+            "🔄 Please send /start again to continue using the Dink Pay bot.",
+            reply_markup=get_main_keyboard()
+        )
+        return False
+
+    return True
 
 def get_payment_label(status):
     if status == "paid":
@@ -383,9 +433,21 @@ bot = telebot.TeleBot(API_KEY)
 def start_command(message):
     user_id = message.from_user.id
     username = message.from_user.username or "NoUsername"
+    start_param = parse_start_param(message.text)
     
     register_user(user_id, username)
     update_last_active(user_id)
+
+    backend_start = register_bot_start_with_backend(message, start_param)
+    backend_access = (backend_start or {}).get("access", {})
+    if backend_access.get("banned"):
+        reason = str(backend_access.get("reason") or "").strip() or "Please contact @DinkPayAdmin for help."
+        bot.send_message(
+            user_id,
+            f"⛔ Access to the Dink Pay bot is currently blocked.\n\n{reason}",
+            reply_markup=get_main_keyboard()
+        )
+        return
     
     if not is_user_in_channel(user_id):
         markup = InlineKeyboardMarkup()
@@ -431,6 +493,9 @@ Select an option below to begin 👇
 def start_payment(message):
     user_id = message.from_user.id
     update_last_active(user_id)
+
+    if not require_backend_access(message):
+        return
     
     if not is_user_in_channel(user_id):
         bot.send_message(user_id, "❌ Please join our channel first! Use /start")
@@ -703,6 +768,9 @@ def my_services(message):
     user_id = message.from_user.id
     update_last_active(user_id)
 
+    if not require_backend_access(message):
+        return
+
     backend_services = get_backend_user_services(user_id)
     local_services = get_user_services(user_id) if not backend_services else []
 
@@ -748,6 +816,9 @@ def my_notifications(message):
     user_id = message.from_user.id
     update_last_active(user_id)
 
+    if not require_backend_access(message):
+        return
+
     backend_notifications = get_backend_user_notifications(user_id)
     local_notifications = get_user_notifications(user_id) if not backend_notifications else []
 
@@ -780,6 +851,9 @@ def my_notifications(message):
 def check_rate(message):
     user_id = message.from_user.id
     update_last_active(user_id)
+
+    if not require_backend_access(message):
+        return
     
     msg = bot.send_message(
         user_id,
@@ -841,6 +915,9 @@ def process_rate_check(message):
 def show_services(message):
     user_id = message.from_user.id
     update_last_active(user_id)
+
+    if not require_backend_access(message):
+        return
     
     text = """
 📋 OUR SERVICES
@@ -871,6 +948,9 @@ Eyuel Stationery
 def contact_admin(message):
     user_id = message.from_user.id
     update_last_active(user_id)
+
+    if not require_backend_access(message):
+        return
     
     text = """
 📞 CONTACT ADMIN
@@ -893,6 +973,9 @@ def contact_admin(message):
 def show_help(message):
     user_id = message.from_user.id
     update_last_active(user_id)
+
+    if not require_backend_access(message):
+        return
     
     text = """
 ❓ HELP & GUIDANCE
@@ -980,6 +1063,9 @@ def admin_set_status(message):
 def handle_unknown(message):
     user_id = message.from_user.id
     update_last_active(user_id)
+
+    if not require_backend_access(message):
+        return
     
     bot.send_message(
         user_id,

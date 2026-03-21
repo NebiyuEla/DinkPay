@@ -1590,8 +1590,15 @@
             <div class="profile-stat"><span>Active orders</span><strong>0</strong></div>
             <div class="profile-stat"><span>Total spent</span><strong>0 ETB</strong></div>
           </div>
+          <div class="metric" id="customerAccessSummary" style="margin-bottom: 16px;">
+            <label>Bot access</label>
+            <strong>Loading access state...</strong>
+          </div>
           <div class="auth-actions" style="margin-top: 0;">
             <button class="btn btn-secondary" type="button" id="messageProfileCustomerButton"><i class="fas fa-paper-plane"></i> Message customer</button>
+            <button class="btn btn-blue" type="button" id="clearCustomerBotStartButton"><i class="fas fa-rotate-right"></i> Reset bot start</button>
+            <button class="btn btn-red" type="button" id="banCustomerBotButton"><i class="fas fa-user-slash"></i> Ban from bot</button>
+            <button class="btn btn-primary" type="button" id="unbanCustomerBotButton" hidden><i class="fas fa-user-check"></i> Restore bot access</button>
           </div>
         </section>
 
@@ -1712,9 +1719,13 @@
     const customerProfileHead = document.getElementById('customerProfileHead');
     const customerProfileMeta = document.getElementById('customerProfileMeta');
     const customerProfileStats = document.getElementById('customerProfileStats');
+    const customerAccessSummary = document.getElementById('customerAccessSummary');
     const customerProfileOrders = document.getElementById('customerProfileOrders');
     const closeCustomerProfileButton = document.getElementById('closeCustomerProfileButton');
     const messageProfileCustomerButton = document.getElementById('messageProfileCustomerButton');
+    const clearCustomerBotStartButton = document.getElementById('clearCustomerBotStartButton');
+    const banCustomerBotButton = document.getElementById('banCustomerBotButton');
+    const unbanCustomerBotButton = document.getElementById('unbanCustomerBotButton');
     const customerProfileAvatar = customerProfileHead.querySelector('.avatar');
     const customerProfileName = customerProfileHead.querySelector('h3');
 
@@ -2065,6 +2076,10 @@
         <div class="profile-stat"><span>Active orders</span><strong>0</strong></div>
         <div class="profile-stat"><span>Total spent</span><strong>0 ETB</strong></div>
       `;
+      customerAccessSummary.innerHTML = `
+        <label>Bot access</label>
+        <strong>Loading access state...</strong>
+      `;
       customerProfileOrders.innerHTML = `
         <div class="empty-state">
           <i class="fas fa-spinner fa-spin" style="font-size: 26px; margin-bottom: 12px;"></i>
@@ -2072,13 +2087,98 @@
         </div>
       `;
       messageProfileCustomerButton.onclick = null;
+      clearCustomerBotStartButton.onclick = null;
+      banCustomerBotButton.onclick = null;
+      unbanCustomerBotButton.onclick = null;
+      clearCustomerBotStartButton.hidden = false;
+      banCustomerBotButton.hidden = false;
+      unbanCustomerBotButton.hidden = true;
+      clearCustomerBotStartButton.disabled = true;
+      banCustomerBotButton.disabled = true;
+      unbanCustomerBotButton.disabled = true;
       setCustomerProfileOpen(false);
+    };
+
+    const renderCustomerAccessSummary = (user = {}, access = {}) => {
+      const hasTelegramAccount = Boolean(access.hasTelegramAccount || user.telegramId);
+      const accessState = access.banned
+        ? 'Banned from bot'
+        : access.startRequired
+          ? 'Start reset required'
+          : hasTelegramAccount
+            ? 'Bot access active'
+            : 'Telegram not linked';
+
+      const details = [];
+      if (user.telegramUsername) {
+        details.push(`Username: @${user.telegramUsername}`);
+      }
+      if (user.telegramId) {
+        details.push(`Telegram ID: ${user.telegramId}`);
+      }
+      if (access.startedAt) {
+        details.push(`Last /start: ${formatDate(access.startedAt)}`);
+      } else if (hasTelegramAccount) {
+        details.push('No bot /start has been recorded yet.');
+      } else {
+        details.push('Link Telegram in the mini app before using bot controls.');
+      }
+      if (access.banned && access.reason) {
+        details.push(`Reason: ${access.reason}`);
+      }
+
+      customerAccessSummary.innerHTML = `
+        <label>Bot access</label>
+        <strong>${escapeHtml(accessState)}</strong>
+        <div class="muted" style="margin-top: 8px; line-height: 1.6;">${details.map((item) => escapeHtml(item)).join('<br>')}</div>
+      `;
+
+      clearCustomerBotStartButton.hidden = !hasTelegramAccount;
+      clearCustomerBotStartButton.disabled = !hasTelegramAccount;
+      banCustomerBotButton.hidden = !hasTelegramAccount || Boolean(access.banned);
+      banCustomerBotButton.disabled = !hasTelegramAccount || Boolean(access.banned);
+      unbanCustomerBotButton.hidden = !hasTelegramAccount || !Boolean(access.banned);
+      unbanCustomerBotButton.disabled = !hasTelegramAccount || !Boolean(access.banned);
+    };
+
+    const updateCustomerBotAccess = async (action) => {
+      if (!activeCustomerProfileId) {
+        showToast('Open a customer profile first.', 'error');
+        return;
+      }
+
+      const payload = { action };
+      if (action === 'ban') {
+        const reason = window.prompt('Add a reason for banning this customer from the bot:', 'Blocked by admin');
+        if (reason === null) {
+          return;
+        }
+        payload.reason = reason.trim() || 'Blocked by admin';
+      }
+
+      const currentUserId = activeCustomerProfileId;
+      clearCustomerBotStartButton.disabled = true;
+      banCustomerBotButton.disabled = true;
+      unbanCustomerBotButton.disabled = true;
+
+      try {
+        const response = await authFetch(`/admin/users/${encodeURIComponent(currentUserId)}/access`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        showToast(response.message || 'Customer bot access updated.');
+        await refreshDashboard(true);
+        await openCustomerProfile(currentUserId);
+      } catch (error) {
+        showToast(error.message || 'Unable to update customer bot access.', 'error');
+      }
     };
 
     const renderCustomerProfile = (profile = {}) => {
       const user = profile.user || {};
       const orders = profile.orders || [];
       const stats = profile.stats || {};
+      const access = user.access || profile.access || {};
 
       customerProfileTitle.textContent = user.fullName || 'Customer profile';
       customerProfileAvatar.textContent = getInitial(user.fullName || user.email || 'U');
@@ -2098,11 +2198,15 @@
         <div class="profile-stat"><span>Active orders</span><strong>${Number(stats.activeOrders || 0).toLocaleString()}</strong></div>
         <div class="profile-stat"><span>Total spent</span><strong>${escapeHtml(formatMoney(stats.totalSpent || 0))}</strong></div>
       `;
+      renderCustomerAccessSummary(user, access);
 
       messageProfileCustomerButton.onclick = () => {
         closeCustomerProfile();
         selectRecipientForOrder(user._id);
       };
+      clearCustomerBotStartButton.onclick = () => updateCustomerBotAccess('clear_start');
+      banCustomerBotButton.onclick = () => updateCustomerBotAccess('ban');
+      unbanCustomerBotButton.onclick = () => updateCustomerBotAccess('unban');
 
       customerProfileOrders.innerHTML =
         orders.length > 0
@@ -2168,6 +2272,10 @@
         <div class="profile-stat"><span>Active orders</span><strong>...</strong></div>
         <div class="profile-stat"><span>Total spent</span><strong>...</strong></div>
       `;
+      customerAccessSummary.innerHTML = `
+        <label>Bot access</label>
+        <strong>Loading access state...</strong>
+      `;
       customerProfileOrders.innerHTML = `
         <div class="empty-state">
           <i class="fas fa-spinner fa-spin" style="font-size: 26px; margin-bottom: 12px;"></i>
@@ -2175,6 +2283,15 @@
         </div>
       `;
       messageProfileCustomerButton.onclick = null;
+      clearCustomerBotStartButton.onclick = null;
+      banCustomerBotButton.onclick = null;
+      unbanCustomerBotButton.onclick = null;
+      clearCustomerBotStartButton.hidden = false;
+      banCustomerBotButton.hidden = false;
+      unbanCustomerBotButton.hidden = true;
+      clearCustomerBotStartButton.disabled = true;
+      banCustomerBotButton.disabled = true;
+      unbanCustomerBotButton.disabled = true;
       setCustomerProfileOpen(true);
 
       try {
