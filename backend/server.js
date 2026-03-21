@@ -154,6 +154,25 @@ const servicePlanSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const referralPrizeSchema = new mongoose.Schema(
+  {
+    place: String,
+    title: String,
+    reward: String
+  },
+  { _id: false }
+);
+
+const referralHistorySchema = new mongoose.Schema(
+  {
+    name: String,
+    joinedAt: String,
+    via: String,
+    status: String
+  },
+  { _id: false }
+);
+
 const serviceSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, trim: true },
@@ -179,11 +198,50 @@ const adminSettingsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const referralCampaignSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: 'Referral Campaign' },
+    description: {
+      type: String,
+      default: 'Invite friends, grow your reach, and earn 5% commission on each successful order.'
+    },
+    endsAt: Date,
+    commissionPercent: { type: Number, default: 5 },
+    targetInvites: { type: Number, default: 50 },
+    active: { type: Boolean, default: true },
+    shareBaseUrl: { type: String, default: 'https://t.me/DinkPaymentBot' },
+    shareMessage: {
+      type: String,
+      default: 'Join the DINK Pay Referral Campaign and start inviting today.'
+    },
+    prizes: { type: [referralPrizeSchema], default: [] }
+  },
+  { timestamps: true }
+);
+
+const referralProfileSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    points: { type: Number, default: 0 },
+    inviteCount: { type: Number, default: 0 },
+    targetInvites: { type: Number, default: 0 },
+    successfulOrders: { type: Number, default: 0 },
+    earnings: { type: Number, default: 0 },
+    commissionPercentOverride: { type: Number, default: null },
+    referralCode: String,
+    notes: String,
+    history: { type: [referralHistorySchema], default: [] }
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model('User', userSchema);
 const Order = mongoose.model('Order', orderSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
 const Service = mongoose.model('Service', serviceSchema);
 const AdminSettings = mongoose.model('AdminSettings', adminSettingsSchema);
+const ReferralCampaign = mongoose.model('ReferralCampaign', referralCampaignSchema);
+const ReferralProfile = mongoose.model('ReferralProfile', referralProfileSchema);
 
 const createUserToken = (userId) => `dummy-token-${userId}`;
 
@@ -522,6 +580,257 @@ const getEffectiveDiscountPercent = (serviceDiscountPercent = 0, globalDiscountP
     normalizeDiscountPercent(serviceDiscountPercent, 0),
     normalizeDiscountPercent(globalDiscountPercent, 0)
   );
+
+const getUpcomingReferralDeadline = () => {
+  const now = new Date();
+  const currentYearTarget = new Date(now.getFullYear(), 3, 19, 23, 59, 59);
+  return now > currentYearTarget
+    ? new Date(now.getFullYear() + 1, 3, 19, 23, 59, 59)
+    : currentYearTarget;
+};
+
+const getDefaultReferralPrizes = () => [
+  { place: '1st', title: 'Grand Prize', reward: '20,000 ETB cash reward' },
+  { place: '2nd', title: 'Champion Bonus', reward: '12,000 ETB cash reward' },
+  { place: '3rd', title: 'Growth Reward', reward: '7,500 ETB bonus payout' },
+  { place: '4th', title: 'Top Performer', reward: '5,000 ETB service credit' },
+  { place: '5th', title: 'Momentum Prize', reward: '2,500 ETB service credit' }
+];
+
+const normalizeCountValue = (value, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.round(parsed));
+};
+
+const normalizeOptionalPercent = (value, fallback = null) => {
+  if (value === null || value === undefined || value === '') {
+    return fallback;
+  }
+
+  return normalizeDiscountPercent(value, fallback ?? 0);
+};
+
+const sanitizeReferralPrizeList = (value) => {
+  const prizes = Array.isArray(value) ? value : [];
+  const normalized = prizes
+    .map((prize, index) => ({
+      place: String(prize?.place || `${index + 1}`).trim(),
+      title: String(prize?.title || '').trim(),
+      reward: String(prize?.reward || '').trim()
+    }))
+    .filter((prize) => prize.title && prize.reward);
+
+  return normalized.length > 0 ? normalized.slice(0, 5) : getDefaultReferralPrizes();
+};
+
+const sanitizeReferralHistory = (value) => {
+  const history = Array.isArray(value) ? value : [];
+  return history
+    .map((entry) => ({
+      name: String(entry?.name || '').trim(),
+      joinedAt: String(entry?.joinedAt || '').trim(),
+      via: String(entry?.via || '').trim(),
+      status: String(entry?.status || '').trim() || 'Joined'
+    }))
+    .filter((entry) => entry.name && entry.joinedAt)
+    .slice(0, 20);
+};
+
+const buildReferralSeed = (user = {}) => {
+  const source = String(user.telegramId || user._id || user.id || user.email || user.fullName || 'dinkpay');
+  return Array.from(source).reduce(
+    (total, character, index) => total + character.charCodeAt(0) * (index + 1),
+    0
+  );
+};
+
+const buildDefaultReferralStats = (user = {}) => {
+  const seed = buildReferralSeed(user);
+  const inviteCount = 12 + (seed % 9);
+  const successfulOrders = Math.max(4, Math.floor(inviteCount * 0.58));
+  const earnings = successfulOrders * 135;
+  const referralCodeSource = String(
+    user.telegramId ||
+      user._id ||
+      user.id ||
+      user.email ||
+      user.fullName ||
+      `dink-${seed}`
+  )
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, 18);
+
+  return {
+    inviteCount,
+    successfulOrders,
+    earnings,
+    points: inviteCount * 18 + successfulOrders * 30,
+    referralCode: `ref_${referralCodeSource || seed}`,
+    history: [
+      { name: 'Rahel G.', joinedAt: '2 hours ago', via: user.fullName || 'Your link', status: 'Joined' },
+      { name: 'Yonatan M.', joinedAt: 'Yesterday', via: user.fullName || 'Your link', status: 'Verified' },
+      { name: 'Hanna D.', joinedAt: '2 days ago', via: user.fullName || 'Your link', status: 'Joined' }
+    ]
+  };
+};
+
+const buildReferralLink = (shareBaseUrl, referralCode) => {
+  const fallbackUrl = `https://t.me/DinkPaymentBot?start=${encodeURIComponent(referralCode)}`;
+
+  try {
+    const url = new URL(String(shareBaseUrl || '').trim() || fallbackUrl);
+    if (/t\.me$/i.test(url.hostname) || url.hostname.toLowerCase() === 't.me') {
+      url.searchParams.set('start', referralCode);
+    } else {
+      url.searchParams.set('ref', referralCode);
+    }
+    return url.toString();
+  } catch (error) {
+    return fallbackUrl;
+  }
+};
+
+const getReferralCampaign = async () =>
+  ReferralCampaign.findOneAndUpdate(
+    {},
+    {
+      $setOnInsert: {
+        endsAt: getUpcomingReferralDeadline(),
+        prizes: getDefaultReferralPrizes()
+      }
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true
+    }
+  );
+
+const serializeReferralCampaign = (campaign) => ({
+  title: campaign?.title || 'Referral Campaign',
+  description:
+    campaign?.description ||
+    'Invite friends, grow your reach, and earn 5% commission on each successful order.',
+  endsAt: campaign?.endsAt || getUpcomingReferralDeadline(),
+  commissionPercent: normalizeDiscountPercent(campaign?.commissionPercent, 5),
+  targetInvites: normalizeCountValue(campaign?.targetInvites, 50) || 50,
+  active: Boolean(campaign?.active ?? true),
+  shareBaseUrl: String(campaign?.shareBaseUrl || 'https://t.me/DinkPaymentBot').trim() || 'https://t.me/DinkPaymentBot',
+  shareMessage:
+    String(campaign?.shareMessage || 'Join the DINK Pay Referral Campaign and start inviting today.').trim() ||
+    'Join the DINK Pay Referral Campaign and start inviting today.',
+  prizes: sanitizeReferralPrizeList(campaign?.prizes)
+});
+
+const buildReferralStateForUser = (user = {}, campaign, profile = null) => {
+  const fallback = buildDefaultReferralStats(user);
+  const campaignState = serializeReferralCampaign(campaign);
+  const inviteCount = normalizeCountValue(profile?.inviteCount, fallback.inviteCount);
+  const targetInvites = normalizeCountValue(profile?.targetInvites, campaignState.targetInvites) || campaignState.targetInvites;
+  const successfulOrders = normalizeCountValue(profile?.successfulOrders, fallback.successfulOrders);
+  const earnings = Number.isFinite(Number(profile?.earnings)) ? Math.max(0, Number(profile.earnings)) : fallback.earnings;
+  const points = normalizeCountValue(profile?.points, fallback.points);
+  const commissionPercent =
+    profile?.commissionPercentOverride === null || profile?.commissionPercentOverride === undefined || profile?.commissionPercentOverride === ''
+      ? campaignState.commissionPercent
+      : normalizeDiscountPercent(profile.commissionPercentOverride, campaignState.commissionPercent);
+  const referralCode =
+    String(profile?.referralCode || '').trim() ||
+    fallback.referralCode;
+  const history = Array.isArray(profile?.history) && profile.history.length > 0
+    ? sanitizeReferralHistory(profile.history)
+    : fallback.history;
+
+  return {
+    points,
+    inviteCount,
+    targetInvites,
+    successfulOrders,
+    earnings,
+    commissionPercent,
+    referralCode,
+    referralLink: buildReferralLink(campaignState.shareBaseUrl, referralCode),
+    notes: String(profile?.notes || '').trim(),
+    history
+  };
+};
+
+const serializeReferralUserForAdmin = (user = {}, campaign, profile = null) => {
+  const state = buildReferralStateForUser(user, campaign, profile);
+
+  return {
+    userId: String(user._id),
+    fullName: user.fullName || 'Customer',
+    email: user.email || '',
+    phone: user.phone || '',
+    telegramUsername: user.telegramUsername || '',
+    telegramId: user.telegramId || '',
+    createdAt: user.createdAt,
+    points: state.points,
+    inviteCount: state.inviteCount,
+    targetInvites: state.targetInvites,
+    successfulOrders: state.successfulOrders,
+    earnings: state.earnings,
+    commissionPercent: state.commissionPercent,
+    commissionPercentOverride:
+      profile?.commissionPercentOverride === null || profile?.commissionPercentOverride === undefined
+        ? null
+        : normalizeDiscountPercent(profile.commissionPercentOverride, state.commissionPercent),
+    referralCode: state.referralCode,
+    referralLink: state.referralLink,
+    notes: state.notes,
+    history: state.history
+  };
+};
+
+const getReferralLeaderboard = async (campaign, { includeUserId = null, limit = 5 } = {}) => {
+  const [users, profiles] = await Promise.all([
+    User.find().select('fullName email telegramId telegramUsername createdAt').lean(),
+    ReferralProfile.find().lean()
+  ]);
+  const profileMap = new Map(profiles.map((profile) => [String(profile.userId), profile]));
+
+  const ranked = users
+    .map((user) => serializeReferralUserForAdmin(user, campaign, profileMap.get(String(user._id))))
+    .sort((left, right) => {
+      if (right.points !== left.points) {
+        return right.points - left.points;
+      }
+      if (right.inviteCount !== left.inviteCount) {
+        return right.inviteCount - left.inviteCount;
+      }
+      return left.fullName.localeCompare(right.fullName);
+    });
+
+  const topEntries = ranked.slice(0, limit).map((entry, index) => ({
+    badge: `#${index + 1}`,
+    userId: entry.userId,
+    name: entry.fullName,
+    invites: entry.inviteCount,
+    points: entry.points,
+    earnings: entry.earnings
+  }));
+
+  if (includeUserId && !topEntries.some((entry) => entry.userId === String(includeUserId))) {
+    const userEntry = ranked.find((entry) => entry.userId === String(includeUserId));
+    if (userEntry) {
+      topEntries.push({
+        badge: `#${ranked.findIndex((entry) => entry.userId === String(includeUserId)) + 1}`,
+        userId: userEntry.userId,
+        name: userEntry.fullName,
+        invites: userEntry.inviteCount,
+        points: userEntry.points,
+        earnings: userEntry.earnings
+      });
+    }
+  }
+
+  return topEntries;
+};
 
 const getAdminSettings = async () =>
   AdminSettings.findOneAndUpdate(
@@ -1655,6 +1964,41 @@ app.get('/api/services', async (req, res, next) => {
   }
 });
 
+app.get('/api/referrals/me', requireUser, async (req, res, next) => {
+  try {
+    const [campaign, profile] = await Promise.all([
+      getReferralCampaign(),
+      ReferralProfile.findOne({ userId: req.user._id }).lean()
+    ]);
+    const campaignState = serializeReferralCampaign(campaign);
+    const referralState = buildReferralStateForUser(req.user, campaignState, profile);
+    const leaderboard = await getReferralLeaderboard(campaignState, { includeUserId: req.user._id, limit: 5 });
+
+    res.json({
+      success: true,
+      referral: {
+        campaign: campaignState,
+        progress: {
+          invites: referralState.inviteCount,
+          targetInvites: referralState.targetInvites
+        },
+        earnings: {
+          earnings: referralState.earnings,
+          successfulOrders: referralState.successfulOrders,
+          points: referralState.points,
+          commissionPercent: referralState.commissionPercent
+        },
+        referralCode: referralState.referralCode,
+        referralLink: referralState.referralLink,
+        history: referralState.history,
+        leaderboard
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/notifications', requireUser, async (req, res, next) => {
   try {
     await syncPendingChapaOrders({ userId: req.user._id });
@@ -1898,6 +2242,190 @@ app.get('/api/admin/users/:id/profile', requireAdmin, async (req, res, next) => 
         }
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/admin/referrals', requireAdmin, async (req, res, next) => {
+  try {
+    const [campaign, users, profiles] = await Promise.all([
+      getReferralCampaign(),
+      User.find()
+        .sort({ createdAt: -1 })
+        .select('fullName email phone telegramId telegramUsername createdAt')
+        .lean(),
+      ReferralProfile.find().lean()
+    ]);
+
+    const campaignState = serializeReferralCampaign(campaign);
+    const profileMap = new Map(profiles.map((profile) => [String(profile.userId), profile]));
+    const referralUsers = users
+      .map((user) => serializeReferralUserForAdmin(user, campaignState, profileMap.get(String(user._id))))
+      .sort((left, right) => {
+        if (right.points !== left.points) {
+          return right.points - left.points;
+        }
+        if (right.inviteCount !== left.inviteCount) {
+          return right.inviteCount - left.inviteCount;
+        }
+        return left.fullName.localeCompare(right.fullName);
+      });
+
+    const stats = referralUsers.reduce(
+      (summary, user) => ({
+        totalUsers: summary.totalUsers + 1,
+        totalPoints: summary.totalPoints + Number(user.points || 0),
+        totalInvites: summary.totalInvites + Number(user.inviteCount || 0),
+        totalEarnings: summary.totalEarnings + Number(user.earnings || 0)
+      }),
+      {
+        totalUsers: 0,
+        totalPoints: 0,
+        totalInvites: 0,
+        totalEarnings: 0
+      }
+    );
+
+    res.json({
+      success: true,
+      campaign: campaignState,
+      users: referralUsers,
+      leaderboard: referralUsers.slice(0, 5).map((user, index) => ({
+        badge: `#${index + 1}`,
+        userId: user.userId,
+        name: user.fullName,
+        invites: user.inviteCount,
+        points: user.points,
+        earnings: user.earnings
+      })),
+      stats: {
+        ...stats,
+        averageCommissionPercent:
+          referralUsers.length > 0
+            ? Math.round(
+                (referralUsers.reduce((sum, user) => sum + Number(user.commissionPercent || 0), 0) /
+                  referralUsers.length) *
+                  100
+              ) / 100
+            : campaignState.commissionPercent
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/referrals/campaign', requireAdmin, async (req, res, next) => {
+  try {
+    const campaign = await getReferralCampaign();
+
+    if (typeof req.body?.title === 'string') {
+      campaign.title = req.body.title.trim() || campaign.title;
+    }
+
+    if (typeof req.body?.description === 'string') {
+      campaign.description = req.body.description.trim() || campaign.description;
+    }
+
+    if (req.body?.endsAt) {
+      const nextEndDate = new Date(req.body.endsAt);
+      if (Number.isNaN(nextEndDate.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid campaign end date' });
+      }
+      campaign.endsAt = nextEndDate;
+    }
+
+    if (req.body?.commissionPercent !== undefined) {
+      campaign.commissionPercent = normalizeDiscountPercent(req.body.commissionPercent, 5);
+    }
+
+    if (req.body?.targetInvites !== undefined) {
+      campaign.targetInvites = normalizeCountValue(req.body.targetInvites, 50) || 50;
+    }
+
+    if (req.body?.active !== undefined) {
+      campaign.active = normalizeBoolean(req.body.active);
+    }
+
+    if (typeof req.body?.shareBaseUrl === 'string') {
+      campaign.shareBaseUrl = req.body.shareBaseUrl.trim() || 'https://t.me/DinkPaymentBot';
+    }
+
+    if (typeof req.body?.shareMessage === 'string') {
+      campaign.shareMessage =
+        req.body.shareMessage.trim() || 'Join the DINK Pay Referral Campaign and start inviting today.';
+    }
+
+    if (req.body?.prizes !== undefined) {
+      campaign.prizes = sanitizeReferralPrizeList(req.body.prizes);
+    }
+
+    await campaign.save();
+
+    res.json({
+      success: true,
+      campaign: serializeReferralCampaign(campaign)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/referrals/users/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid customer id' });
+    }
+
+    const user = await User.findById(req.params.id)
+      .select('fullName email phone telegramId telegramUsername createdAt')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    const campaign = await getReferralCampaign();
+    const profile = await ReferralProfile.findOneAndUpdate(
+      { userId: user._id },
+      {
+        $set: {
+          points: normalizeCountValue(req.body?.points, 0),
+          inviteCount: normalizeCountValue(req.body?.inviteCount, 0),
+          targetInvites: normalizeCountValue(req.body?.targetInvites, 0),
+          successfulOrders: normalizeCountValue(req.body?.successfulOrders, 0),
+          earnings: Number.isFinite(Number(req.body?.earnings)) ? Math.max(0, Number(req.body.earnings)) : 0,
+          commissionPercentOverride: normalizeOptionalPercent(req.body?.commissionPercentOverride, null),
+          referralCode: String(req.body?.referralCode || '').trim(),
+          notes: String(req.body?.notes || '').trim(),
+          history: sanitizeReferralHistory(req.body?.history)
+        }
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true
+      }
+    ).lean();
+
+    res.json({
+      success: true,
+      user: serializeReferralUserForAdmin(user, serializeReferralCampaign(campaign), profile)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/referrals/users/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid customer id' });
+    }
+
+    await ReferralProfile.findOneAndDelete({ userId: req.params.id });
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

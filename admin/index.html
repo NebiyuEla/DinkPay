@@ -2725,8 +2725,20 @@
       fillServiceForm(service);
     };
 
+    const referralPageButton = document.createElement('button');
+    referralPageButton.className = 'btn btn-blue';
+    referralPageButton.id = 'openReferralPageButton';
+    referralPageButton.innerHTML = '<i class="fas fa-bullseye"></i> Referral campaign';
+
+    if (openServicesButton?.parentElement && !document.getElementById('openReferralPageButton')) {
+      openServicesButton.parentElement.appendChild(referralPageButton);
+    }
+
     loginForm.addEventListener('submit', handleLogin);
     openServicesButton.addEventListener('click', () => setAdminPage('services'));
+    referralPageButton.addEventListener('click', () => {
+      window.location.href = '/admin/referrals.html';
+    });
     backToDashboardButton.addEventListener('click', () => setAdminPage('dashboard'));
     refreshButton.addEventListener('click', () => refreshDashboard());
     servicesRefreshButton.addEventListener('click', () => refreshDashboard());

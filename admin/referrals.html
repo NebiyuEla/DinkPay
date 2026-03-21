@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DINK Pay Referral Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --ink: #091322;
+      --panel: rgba(7, 20, 39, 0.82);
+      --panel-soft: rgba(17, 34, 62, 0.74);
+      --line: rgba(149, 255, 196, 0.14);
+      --line-strong: rgba(149, 255, 196, 0.32);
+      --text: #f4f8ff;
+      --muted: rgba(244, 248, 255, 0.64);
+      --subtle: rgba(244, 248, 255, 0.36);
+      --green: #7dffb4;
+      --green-strong: #2ce277;
+      --blue: #63a8ff;
+      --gold: #ffd76a;
+      --red: #ff7d7d;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Manrope', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(44, 226, 119, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(99, 168, 255, 0.18), transparent 24%),
+        linear-gradient(180deg, #07111f 0%, #0d1a2d 50%, #091322 100%);
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app-shell {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 42px;
+    }
+
+    .hero,
+    .panel,
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(24px);
+    }
+
+    .hero {
+      padding: 28px;
+      margin-bottom: 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      right: -80px;
+      bottom: -120px;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(125, 255, 180, 0.24) 0%, rgba(125, 255, 180, 0) 70%);
+      pointer-events: none;
+    }
+
+    .hero h1,
+    .section-title {
+      margin: 0;
+      font-family: 'Space Grotesk', sans-serif;
+      letter-spacing: -0.04em;
+    }
+
+    .hero h1 {
+      font-size: 38px;
+      line-height: 1.02;
+    }
+
+    .hero p,
+    .section-copy {
+      margin: 12px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .hero-actions,
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .hero-actions {
+      align-items: flex-start;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      transition: transform 0.18s ease, opacity 0.18s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--green), var(--green-strong));
+      color: var(--ink);
+      box-shadow: 0 16px 36px rgba(44, 226, 119, 0.24);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .btn-blue {
+      background: rgba(99, 168, 255, 0.14);
+      color: var(--blue);
+      border: 1px solid rgba(99, 168, 255, 0.3);
+    }
+
+    .btn-red {
+      background: rgba(255, 125, 125, 0.14);
+      color: var(--red);
+      border: 1px solid rgba(255, 125, 125, 0.28);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      padding: 18px;
+      border-radius: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .stat-value {
+      margin-top: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .panel + .panel {
+      margin-top: 24px;
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .field,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--panel-soft);
+      color: var(--text);
+      border-radius: 18px;
+      padding: 14px 15px;
+      outline: none;
+      transition: border-color 0.18s ease, transform 0.18s ease;
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .field:focus,
+    textarea:focus,
+    select:focus {
+      border-color: var(--line-strong);
+      transform: translateY(-1px);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .full-span {
+      grid-column: 1 / -1;
+    }
+
+    .prizes-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .prize-card {
+      padding: 16px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .prize-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .prize-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 52px;
+      height: 40px;
+      border-radius: 16px;
+      background: rgba(255, 215, 106, 0.14);
+      color: var(--gold);
+      font-weight: 800;
+    }
+
+    .user-search {
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .user-search input {
+      padding-left: 44px;
+      border-radius: 999px;
+    }
+
+    .user-search i {
+      position: absolute;
+      top: 50%;
+      left: 16px;
+      transform: translateY(-50%);
+      color: var(--green);
+    }
+
+    .user-list {
+      display: grid;
+      gap: 10px;
+      max-height: 420px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .user-item {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      border-radius: 22px;
+      padding: 14px 16px;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .user-item.active {
+      border-color: rgba(125, 255, 180, 0.36);
+      background: rgba(125, 255, 180, 0.1);
+    }
+
+    .user-item strong,
+    .user-item span {
+      display: block;
+    }
+
+    .user-item span {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .user-metrics {
+      text-align: right;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .selected-user {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .selected-user[hidden] {
+      display: none;
+    }
+
+    .user-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 16px 0 18px;
+    }
+
+    .meta-card {
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .meta-card span,
+    .meta-card strong {
+      display: block;
+    }
+
+    .meta-card span {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .leaderboard-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .leaderboard-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .leaderboard-rank {
+      min-width: 44px;
+      height: 44px;
+      border-radius: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(125, 255, 180, 0.14);
+      color: var(--green);
+      font-weight: 800;
+    }
+
+    .empty-state {
+      padding: 28px 18px;
+      border-radius: 22px;
+      border: 1px dashed rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      text-align: center;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      padding: 14px 18px;
+      max-width: 360px;
+      transform: translateY(140%);
+      opacity: 0;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+      z-index: 999;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.error {
+      border-color: rgba(255, 125, 125, 0.28);
+    }
+
+    @media (max-width: 1080px) {
+      .overview-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .layout-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .app-shell {
+        width: min(100vw - 20px, 100%);
+        padding: 14px 0 30px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .overview-grid,
+      .form-grid,
+      .user-meta-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero">
+      <div>
+        <div class="chip"><i class="fas fa-bullseye"></i> Referral control room</div>
+        <h1>Referral campaign management</h1>
+        <p>Control campaign timing, prize rewards, commission, targets, and customer-specific referral adjustments from one place.</p>
+      </div>
+      <div class="hero-actions">
+        <button class="btn btn-secondary" id="backButton"><i class="fas fa-arrow-left"></i> Dashboard</button>
+        <button class="btn btn-blue" id="refreshButton"><i class="fas fa-rotate"></i> Refresh</button>
+        <button class="btn btn-red" id="logoutButton"><i class="fas fa-right-from-bracket"></i> Logout</button>
+      </div>
+    </section>
+
+    <section class="overview-grid">
+      <article class="stat-card">
+        <div class="stat-label">Tracked users</div>
+        <div class="stat-value" id="statUsers">0</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Total invites</div>
+        <div class="stat-value" id="statInvites">0</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Referral points</div>
+        <div class="stat-value" id="statPoints">0</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Campaign earnings</div>
+        <div class="stat-value" id="statEarnings">0 ETB</div>
+      </article>
+    </section>
+
+    <section class="layout-grid">
+      <div>
+        <section class="panel">
+          <h2 class="section-title">Campaign setup</h2>
+          <p class="section-copy">Adjust the live campaign title, description, deadline, commission rules, share copy, and top prize rewards.</p>
+
+          <form id="campaignForm" style="margin-top: 18px;">
+            <div class="form-grid">
+              <div class="full-span">
+                <label class="field-label" for="campaignTitle">Campaign title</label>
+                <input class="field" id="campaignTitle" type="text" placeholder="Referral Campaign">
+              </div>
+              <div class="full-span">
+                <label class="field-label" for="campaignDescription">Description</label>
+                <textarea id="campaignDescription" placeholder="Invite friends, grow your reach, and earn 5% commission on each successful order."></textarea>
+              </div>
+              <div>
+                <label class="field-label" for="campaignEndsAt">End date</label>
+                <input class="field" id="campaignEndsAt" type="datetime-local">
+              </div>
+              <div>
+                <label class="field-label" for="campaignActive">Campaign status</label>
+                <select id="campaignActive">
+                  <option value="true">Active</option>
+                  <option value="false">Paused</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="campaignCommission">Commission percent</label>
+                <input class="field" id="campaignCommission" type="number" min="0" max="99" step="0.01">
+              </div>
+              <div>
+                <label class="field-label" for="campaignTarget">Default target invites</label>
+                <input class="field" id="campaignTarget" type="number" min="1" step="1">
+              </div>
+              <div class="full-span">
+                <label class="field-label" for="campaignShareBaseUrl">Share base URL</label>
+                <input class="field" id="campaignShareBaseUrl" type="text" placeholder="https://t.me/DinkPaymentBot">
+              </div>
+              <div class="full-span">
+                <label class="field-label" for="campaignShareMessage">Share message</label>
+                <textarea id="campaignShareMessage" placeholder="Join the DINK Pay Referral Campaign and start inviting today."></textarea>
+              </div>
+            </div>
+
+            <div class="prizes-grid" id="prizesContainer"></div>
+
+            <div class="form-actions" style="margin-top: 18px;">
+              <button class="btn btn-primary" type="submit" id="saveCampaignButton"><i class="fas fa-floppy-disk"></i> Save campaign</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2 class="section-title">Leaderboard preview</h2>
+          <p class="section-copy">See how the current top performers will appear inside the mini app referral page.</p>
+          <div class="leaderboard-list" id="leaderboardList"></div>
+        </section>
+      </div>
+
+      <div>
+        <section class="panel">
+          <h2 class="section-title">Customer referral controls</h2>
+          <p class="section-copy">Search any registered user, then change points, custom targets, referral code, earnings, commission override, and history.</p>
+
+          <div class="user-search">
+            <i class="fas fa-search"></i>
+            <input class="field" id="userSearch" type="text" placeholder="Search customer by name, email, phone, or Telegram">
+          </div>
+
+          <div class="user-list" id="userList"></div>
+
+          <form class="selected-user" id="userForm" hidden>
+            <div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap;">
+              <div>
+                <h3 id="selectedUserName" style="margin: 0; font-size: 22px;"></h3>
+                <p id="selectedUserCopy" style="margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6;"></p>
+              </div>
+              <div class="chip" id="selectedUserChip"><i class="fas fa-bolt"></i> Ready to edit</div>
+            </div>
+
+            <div class="user-meta-grid">
+              <div class="meta-card">
+                <span>Referral link</span>
+                <strong id="selectedUserLink">-</strong>
+              </div>
+              <div class="meta-card">
+                <span>Joined</span>
+                <strong id="selectedUserJoined">-</strong>
+              </div>
+              <div class="meta-card">
+                <span>Email</span>
+                <strong id="selectedUserEmail">-</strong>
+              </div>
+              <div class="meta-card">
+                <span>Telegram</span>
+                <strong id="selectedUserTelegram">-</strong>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div>
+                <label class="field-label" for="userPoints">Points</label>
+                <input class="field" id="userPoints" type="number" min="0" step="1">
+              </div>
+              <div>
+                <label class="field-label" for="userInvites">Invite count</label>
+                <input class="field" id="userInvites" type="number" min="0" step="1">
+              </div>
+              <div>
+                <label class="field-label" for="userSuccessfulOrders">Successful orders</label>
+                <input class="field" id="userSuccessfulOrders" type="number" min="0" step="1">
+              </div>
+              <div>
+                <label class="field-label" for="userEarnings">Earnings (ETB)</label>
+                <input class="field" id="userEarnings" type="number" min="0" step="0.01">
+              </div>
+              <div>
+                <label class="field-label" for="userTargetInvites">Custom target invites</label>
+                <input class="field" id="userTargetInvites" type="number" min="0" step="1">
+              </div>
+              <div>
+                <label class="field-label" for="userCommissionOverride">Commission override (%)</label>
+                <input class="field" id="userCommissionOverride" type="number" min="0" max="99" step="0.01" placeholder="Leave blank to use campaign value">
+              </div>
+              <div class="full-span">
+                <label class="field-label" for="userReferralCode">Referral code</label>
+                <input class="field" id="userReferralCode" type="text" placeholder="ref_customer">
+              </div>
+              <div class="full-span">
+                <label class="field-label" for="userNotes">Admin notes</label>
+                <textarea id="userNotes" placeholder="Internal notes about this customer's referral progress"></textarea>
+              </div>
+              <div class="full-span">
+                <label class="field-label" for="userHistory">Referral history (JSON array)</label>
+                <textarea id="userHistory" placeholder='[{"name":"Rahel G.","joinedAt":"2 hours ago","via":"Your link","status":"Joined"}]'></textarea>
+              </div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 18px;">
+              <button class="btn btn-primary" type="submit" id="saveUserButton"><i class="fas fa-floppy-disk"></i> Save user changes</button>
+              <button class="btn btn-red" type="button" id="resetUserButton"><i class="fas fa-rotate-left"></i> Reset user overrides</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API_URL = `${window.location.origin.replace(/\/$/, '')}/api`;
+    const adminToken = localStorage.getItem('dinkAdminToken');
+    const toast = document.getElementById('toast');
+    const campaignForm = document.getElementById('campaignForm');
+    const userForm = document.getElementById('userForm');
+    const prizesContainer = document.getElementById('prizesContainer');
+    const leaderboardList = document.getElementById('leaderboardList');
+    const userList = document.getElementById('userList');
+    const userSearch = document.getElementById('userSearch');
+
+    let referralState = {
+      campaign: null,
+      users: [],
+      leaderboard: [],
+      stats: null
+    };
+    let selectedUserId = '';
+
+    if (!adminToken) {
+      window.location.replace('/admin');
+    }
+
+    const showToast = (message, type = 'success') => {
+      toast.textContent = message;
+      toast.className = `toast show ${type === 'error' ? 'error' : ''}`.trim();
+      window.clearTimeout(window.__dinkReferralToastTimer);
+      window.__dinkReferralToastTimer = window.setTimeout(() => {
+        toast.className = 'toast';
+      }, 2800);
+    };
+
+    const formatNumber = (value = 0) => Number(value || 0).toLocaleString();
+    const formatMoney = (value = 0) => `${formatNumber(value)} ETB`;
+    const escapeHtml = (value = '') =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const toLocalDateTimeValue = (value) => {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return offsetDate.toISOString().slice(0, 16);
+    };
+
+    const readApiPayload = async (response, fallbackMessage) => {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || fallbackMessage);
+        }
+        return data;
+      }
+      throw new Error(fallbackMessage);
+    };
+
+    const authFetch = async (path, options = {}) => {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+          ...(options.headers || {})
+        }
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('dinkAdminToken');
+        window.location.replace('/admin');
+        throw new Error('Admin session expired.');
+      }
+
+      return readApiPayload(response, 'Unable to load referral admin data.');
+    };
+
+    const defaultPrizeEntries = () => [
+      { place: '1st', title: 'Grand Prize', reward: '20,000 ETB cash reward' },
+      { place: '2nd', title: 'Champion Bonus', reward: '12,000 ETB cash reward' },
+      { place: '3rd', title: 'Growth Reward', reward: '7,500 ETB bonus payout' },
+      { place: '4th', title: 'Top Performer', reward: '5,000 ETB service credit' },
+      { place: '5th', title: 'Momentum Prize', reward: '2,500 ETB service credit' }
+    ];
+
+    const renderPrizeInputs = (prizes = []) => {
+      const safePrizes = [...(prizes.length ? prizes : defaultPrizeEntries())].slice(0, 5);
+      while (safePrizes.length < 5) {
+        safePrizes.push({ place: `${safePrizes.length + 1}`, title: '', reward: '' });
+      }
+
+      prizesContainer.innerHTML = safePrizes
+        .map((prize, index) => `
+          <div class="prize-card">
+            <div class="prize-head">
+              <strong>Prize ${index + 1}</strong>
+              <span class="prize-badge">${escapeHtml(prize.place || `${index + 1}`)}</span>
+            </div>
+            <div class="form-grid">
+              <div>
+                <label class="field-label" for="prizePlace${index}">Place</label>
+                <input class="field" id="prizePlace${index}" type="text" value="${escapeHtml(prize.place || '')}">
+              </div>
+              <div>
+                <label class="field-label" for="prizeTitle${index}">Prize title</label>
+                <input class="field" id="prizeTitle${index}" type="text" value="${escapeHtml(prize.title || '')}">
+              </div>
+              <div class="full-span">
+                <label class="field-label" for="prizeReward${index}">Reward</label>
+                <input class="field" id="prizeReward${index}" type="text" value="${escapeHtml(prize.reward || '')}">
+              </div>
+            </div>
+          </div>
+        `)
+        .join('');
+    };
+
+    const getCampaignPrizesFromForm = () => {
+      const prizes = [];
+      for (let index = 0; index < 5; index += 1) {
+        const place = document.getElementById(`prizePlace${index}`)?.value.trim() || '';
+        const title = document.getElementById(`prizeTitle${index}`)?.value.trim() || '';
+        const reward = document.getElementById(`prizeReward${index}`)?.value.trim() || '';
+        if (title && reward) {
+          prizes.push({ place, title, reward });
+        }
+      }
+      return prizes;
+    };
+
+    const renderStats = () => {
+      const stats = referralState.stats || { totalUsers: 0, totalInvites: 0, totalPoints: 0, totalEarnings: 0 };
+      document.getElementById('statUsers').textContent = formatNumber(stats.totalUsers);
+      document.getElementById('statInvites').textContent = formatNumber(stats.totalInvites);
+      document.getElementById('statPoints').textContent = formatNumber(stats.totalPoints);
+      document.getElementById('statEarnings').textContent = formatMoney(stats.totalEarnings);
+    };
+
+    const renderLeaderboard = () => {
+      const leaderboard = referralState.leaderboard || [];
+      if (!leaderboard.length) {
+        leaderboardList.innerHTML = '<div class="empty-state">No leaderboard data yet.</div>';
+        return;
+      }
+
+      leaderboardList.innerHTML = leaderboard
+        .map((entry) => `
+          <div class="leaderboard-row">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="leaderboard-rank">${escapeHtml(entry.badge)}</span>
+              <div>
+                <strong>${escapeHtml(entry.name)}</strong>
+                <div style="color: var(--muted); font-size: 12px; margin-top: 4px;">
+                  ${formatNumber(entry.invites)} invites • ${formatNumber(entry.points)} points
+                </div>
+              </div>
+            </div>
+            <div style="text-align: right; color: var(--green); font-weight: 700;">${formatMoney(entry.earnings)}</div>
+          </div>
+        `)
+        .join('');
+    };
+
+    const fillCampaignForm = (campaign) => {
+      document.getElementById('campaignTitle').value = campaign?.title || '';
+      document.getElementById('campaignDescription').value = campaign?.description || '';
+      document.getElementById('campaignEndsAt').value = toLocalDateTimeValue(campaign?.endsAt);
+      document.getElementById('campaignActive').value = String(campaign?.active ?? true);
+      document.getElementById('campaignCommission').value = campaign?.commissionPercent ?? 5;
+      document.getElementById('campaignTarget').value = campaign?.targetInvites ?? 50;
+      document.getElementById('campaignShareBaseUrl').value = campaign?.shareBaseUrl || 'https://t.me/DinkPaymentBot';
+      document.getElementById('campaignShareMessage').value = campaign?.shareMessage || '';
+      renderPrizeInputs(campaign?.prizes || defaultPrizeEntries());
+    };
+
+    const renderUserList = () => {
+      const query = userSearch.value.trim().toLowerCase();
+      const filteredUsers = (referralState.users || []).filter((user) => {
+        if (!query) return true;
+        return [user.fullName, user.email, user.phone, user.telegramUsername, user.referralCode]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
+      });
+
+      if (!filteredUsers.length) {
+        userList.innerHTML = '<div class="empty-state">No customer matched your search.</div>';
+        return;
+      }
+
+      userList.innerHTML = filteredUsers
+        .map((user) => `
+          <button type="button" class="user-item ${selectedUserId === user.userId ? 'active' : ''}" data-user-id="${escapeHtml(user.userId)}">
+            <div>
+              <strong>${escapeHtml(user.fullName)}</strong>
+              <span>${escapeHtml(user.email || user.phone || user.telegramUsername || 'No contact info')}</span>
+            </div>
+            <div class="user-metrics">
+              <div>${formatNumber(user.points)} pts</div>
+              <div>${formatNumber(user.inviteCount)} invites</div>
+            </div>
+          </button>
+        `)
+        .join('');
+
+      userList.querySelectorAll('[data-user-id]').forEach((button) => {
+        button.addEventListener('click', () => {
+          selectedUserId = button.dataset.userId;
+          fillUserForm();
+          renderUserList();
+        });
+      });
+    };
+
+    const fillUserForm = () => {
+      const user = (referralState.users || []).find((entry) => entry.userId === selectedUserId);
+      if (!user) {
+        userForm.hidden = true;
+        return;
+      }
+
+      userForm.hidden = false;
+      document.getElementById('selectedUserName').textContent = user.fullName;
+      document.getElementById('selectedUserCopy').textContent = `${formatNumber(user.points)} points, ${formatNumber(user.inviteCount)} invites, ${formatMoney(user.earnings)} earned.`;
+      document.getElementById('selectedUserChip').innerHTML = `<i class="fas fa-sparkles"></i> ${user.commissionPercent}% commission`;
+      document.getElementById('selectedUserLink').textContent = user.referralLink || '-';
+      document.getElementById('selectedUserJoined').textContent = user.createdAt ? new Date(user.createdAt).toLocaleString() : '-';
+      document.getElementById('selectedUserEmail').textContent = user.email || '-';
+      document.getElementById('selectedUserTelegram').textContent = user.telegramUsername ? `@${String(user.telegramUsername).replace(/^@/, '')}` : '-';
+      document.getElementById('userPoints').value = user.points ?? 0;
+      document.getElementById('userInvites').value = user.inviteCount ?? 0;
+      document.getElementById('userSuccessfulOrders').value = user.successfulOrders ?? 0;
+      document.getElementById('userEarnings').value = user.earnings ?? 0;
+      document.getElementById('userTargetInvites').value = user.targetInvites ?? 0;
+      document.getElementById('userCommissionOverride').value = user.commissionPercentOverride ?? '';
+      document.getElementById('userReferralCode').value = user.referralCode || '';
+      document.getElementById('userNotes').value = user.notes || '';
+      document.getElementById('userHistory').value = JSON.stringify(user.history || [], null, 2);
+    };
+
+    const loadReferralData = async (silent = false) => {
+      const refreshButton = document.getElementById('refreshButton');
+      if (!silent) {
+        refreshButton.disabled = true;
+      }
+
+      try {
+        const data = await authFetch('/admin/referrals');
+        referralState = {
+          campaign: data.campaign,
+          users: data.users || [],
+          leaderboard: data.leaderboard || [],
+          stats: data.stats || null
+        };
+
+        if (!selectedUserId && referralState.users.length > 0) {
+          selectedUserId = referralState.users[0].userId;
+        }
+
+        if (selectedUserId && !referralState.users.some((user) => user.userId === selectedUserId)) {
+          selectedUserId = referralState.users[0]?.userId || '';
+        }
+
+        renderStats();
+        fillCampaignForm(referralState.campaign);
+        renderLeaderboard();
+        renderUserList();
+        fillUserForm();
+        if (!silent) {
+          showToast('Referral campaign refreshed.');
+        }
+      } catch (error) {
+        showToast(error.message || 'Unable to load referral campaign data.', 'error');
+      } finally {
+        refreshButton.disabled = false;
+      }
+    };
+
+    campaignForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const saveButton = document.getElementById('saveCampaignButton');
+      saveButton.disabled = true;
+
+      try {
+        await authFetch('/admin/referrals/campaign', {
+          method: 'PUT',
+          body: JSON.stringify({
+            title: document.getElementById('campaignTitle').value.trim(),
+            description: document.getElementById('campaignDescription').value.trim(),
+            endsAt: document.getElementById('campaignEndsAt').value,
+            active: document.getElementById('campaignActive').value === 'true',
+            commissionPercent: document.getElementById('campaignCommission').value.trim(),
+            targetInvites: document.getElementById('campaignTarget').value.trim(),
+            shareBaseUrl: document.getElementById('campaignShareBaseUrl').value.trim(),
+            shareMessage: document.getElementById('campaignShareMessage').value.trim(),
+            prizes: getCampaignPrizesFromForm()
+          })
+        });
+
+        showToast('Referral campaign saved.');
+        await loadReferralData(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to save the campaign.', 'error');
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
+    userForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!selectedUserId) {
+        showToast('Choose a customer first.', 'error');
+        return;
+      }
+
+      const saveButton = document.getElementById('saveUserButton');
+      saveButton.disabled = true;
+
+      try {
+        let history = [];
+        const historyValue = document.getElementById('userHistory').value.trim();
+        if (historyValue) {
+          const parsedHistory = JSON.parse(historyValue);
+          if (!Array.isArray(parsedHistory)) {
+            throw new Error('Referral history must be a JSON array.');
+          }
+          history = parsedHistory;
+        }
+
+        await authFetch(`/admin/referrals/users/${encodeURIComponent(selectedUserId)}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            points: document.getElementById('userPoints').value.trim(),
+            inviteCount: document.getElementById('userInvites').value.trim(),
+            successfulOrders: document.getElementById('userSuccessfulOrders').value.trim(),
+            earnings: document.getElementById('userEarnings').value.trim(),
+            targetInvites: document.getElementById('userTargetInvites').value.trim(),
+            commissionPercentOverride: document.getElementById('userCommissionOverride').value.trim(),
+            referralCode: document.getElementById('userReferralCode').value.trim(),
+            notes: document.getElementById('userNotes').value.trim(),
+            history
+          })
+        });
+
+        showToast('Customer referral settings saved.');
+        await loadReferralData(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to save the customer referral settings.', 'error');
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
+    document.getElementById('resetUserButton').addEventListener('click', async () => {
+      if (!selectedUserId) {
+        return;
+      }
+
+      const confirmed = window.confirm('Reset all referral overrides for this customer?');
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await authFetch(`/admin/referrals/users/${encodeURIComponent(selectedUserId)}`, {
+          method: 'DELETE'
+        });
+        showToast('Customer referral overrides reset.');
+        await loadReferralData(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to reset this customer.', 'error');
+      }
+    });
+
+    userSearch.addEventListener('input', renderUserList);
+    document.getElementById('refreshButton').addEventListener('click', () => loadReferralData());
+    document.getElementById('backButton').addEventListener('click', () => {
+      window.location.href = '/admin';
+    });
+    document.getElementById('logoutButton').addEventListener('click', async () => {
+      try {
+        await authFetch('/admin/auth/logout', { method: 'POST' });
+      } catch (error) {
+        console.warn(error);
+      } finally {
+        localStorage.removeItem('dinkAdminToken');
+        window.location.replace('/admin');
+      }
+    });
+
+    loadReferralData();
+  </script>
+</body>
+</html>

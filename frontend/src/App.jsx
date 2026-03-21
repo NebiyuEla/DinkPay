@@ -15,6 +15,7 @@ import NotificationsScreen from './screens/NotificationsScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import TermsScreen from './screens/TermsScreen';
+import ReferralScreen from './screens/ReferralScreen';
 import { API_URL } from './config';
 import { services as fallbackServices } from './data/services';
 import { TERMS_VERSION_KEY } from './data/legal';
@@ -553,9 +554,18 @@ function App() {
             unreadCount={unreadCount}
             activeOrders={activeOrders}
             onServiceSelect={handleServiceSelect}
+            onReferralClick={() => setCurrentScreen('referral')}
             onProfileClick={() => setCurrentScreen('profile')}
             onOrdersClick={() => setCurrentScreen('orders')}
             onNotificationsClick={() => setCurrentScreen('notifications')}
+          />
+        )}
+
+        {currentScreen === 'referral' && user && (
+          <ReferralScreen
+            key="referral"
+            user={user}
+            onBack={() => setCurrentScreen('home')}
           />
         )}
 
