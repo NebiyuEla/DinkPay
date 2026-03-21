@@ -96,6 +96,7 @@ function App() {
 
   const bootTimeoutRef = useRef(null);
   const handledReturnRef = useRef(false);
+  const launchReferralCodeRef = useRef('');
 
   const queueScreen = (screen, delay = 900) => {
     window.clearTimeout(bootTimeoutRef.current);
@@ -116,18 +117,80 @@ function App() {
     localStorage.setItem('dinkUser', JSON.stringify(nextUser));
   };
 
+  const clearStoredSession = () => {
+    setUser(null);
+    setOrders([]);
+    setNotifications([]);
+    setSelectedService(null);
+    setSelectedPlan(null);
+    setPendingCredentials({});
+    setConfirmedOrder(null);
+    setTermsEntryPoint('auth');
+    localStorage.removeItem('dinkUser');
+    localStorage.removeItem('dinkToken');
+    setCurrentScreen('login');
+  };
+
+  const handleAuthFailureResponse = async (response, fallbackMessage) => {
+    if (response.status === 401 || response.status === 403) {
+      const data = await response.json().catch(() => ({}));
+      clearStoredSession();
+      const authError = new Error(normalizeUiMessage(data.message, 'Your account session is no longer active.'));
+      authError.code = 'AUTH_INVALID';
+      throw authError;
+    }
+
+    return readApiPayload(response, fallbackMessage);
+  };
+
+  const applyLaunchReferral = async (token) => {
+    const referralCode = launchReferralCodeRef.current;
+    if (!token || !referralCode) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/referrals/apply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          code: referralCode,
+          source: 'Mini app referral link'
+        })
+      });
+
+      await handleAuthFailureResponse(response, 'Unable to connect the referral link right now.');
+    } catch (error) {
+      console.error('Referral apply error:', error);
+    } finally {
+      launchReferralCodeRef.current = '';
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('ref')) {
+        params.delete('ref');
+        const nextQuery = params.toString();
+        window.history.replaceState({}, document.title, `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`);
+      }
+    }
+  };
+
   const fetchUserOrders = async (token) => {
     try {
       const response = await fetch(`${API_URL}/orders/user`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await readApiPayload(response, 'Unable to load your orders right now.');
+      const data = await handleAuthFailureResponse(response, 'Unable to load your orders right now.');
       if (data.success) {
         setOrders(data.orders);
         return data.orders;
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
+      if (error?.code === 'AUTH_INVALID') {
+        throw error;
+      }
     }
     return [];
   };
@@ -137,13 +200,16 @@ function App() {
       const response = await fetch(`${API_URL}/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await readApiPayload(response, 'Unable to load notifications right now.');
+      const data = await handleAuthFailureResponse(response, 'Unable to load notifications right now.');
       if (data.success) {
         setNotifications(data.notifications);
         return data.notifications;
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      if (error?.code === 'AUTH_INVALID') {
+        throw error;
+      }
     }
     return [];
   };
@@ -203,6 +269,7 @@ function App() {
       const savedToken = localStorage.getItem('dinkToken');
       const params = new URLSearchParams(window.location.search);
       const txRef = params.get('tx_ref') || params.get('trx_ref');
+      const queryReferralCode = params.get('ref') || '';
 
       await loadServicesCatalog();
 
@@ -211,6 +278,9 @@ function App() {
         tg.ready();
         tg.expand();
         tg.disableVerticalSwipes();
+        launchReferralCodeRef.current = tg.initDataUnsafe?.start_param || queryReferralCode || '';
+      } else {
+        launchReferralCodeRef.current = queryReferralCode || '';
       }
 
       if (!savedUser || !savedToken) {
@@ -227,7 +297,15 @@ function App() {
       if (cancelled) return;
 
       setUser(userData);
-      await hydrateAfterAuth(savedToken);
+      try {
+        await hydrateAfterAuth(savedToken);
+      } catch (error) {
+        if (error?.code === 'AUTH_INVALID') {
+          return;
+        }
+        throw error;
+      }
+      await applyLaunchReferral(savedToken);
 
       if (cancelled) return;
 
@@ -285,6 +363,7 @@ function App() {
       setOrders(userData.orders || []);
     }
     await fetchUserNotifications(token);
+    await applyLaunchReferral(token);
     if (userNeedsTermsAcceptance(userData)) {
       setTermsEntryPoint('auth');
       setCurrentScreen('terms');
@@ -362,6 +441,7 @@ function App() {
       if (data.success) {
         persistSession(data.user, data.token);
         await hydrateAfterAuth(data.token);
+        await applyLaunchReferral(data.token);
         if (userNeedsTermsAcceptance(data.user)) {
           setTermsEntryPoint('auth');
           setCurrentScreen('terms');
@@ -502,17 +582,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    setUser(null);
-    setOrders([]);
-    setNotifications([]);
-    setSelectedService(null);
-    setSelectedPlan(null);
-    setPendingCredentials({});
-    setConfirmedOrder(null);
-    setTermsEntryPoint('auth');
-    localStorage.removeItem('dinkUser');
-    localStorage.removeItem('dinkToken');
-    setCurrentScreen('login');
+    clearStoredSession();
   };
 
   const unreadCount = notifications.filter((notification) => !notification.read).length;

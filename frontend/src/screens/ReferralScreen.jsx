@@ -45,7 +45,7 @@ const buildCampaignModel = (user) => {
     commissionPercent: 5,
     points: invites * 18 + successfulOrders * 30,
     inviteCode,
-    referralLink: `https://t.me/DinkPaymentBot?start=${encodeURIComponent(inviteCode)}`,
+    referralLink: `https://t.me/DinkPaymentBot?start=${encodeURIComponent(inviteCode)}&startapp=${encodeURIComponent(inviteCode)}`,
     leaderboard: [],
     history: [],
     prizes: [
@@ -329,7 +329,7 @@ const ReferralScreen = ({ user, onBack }) => {
           />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
           <div
             style={{
               padding: '14px',
@@ -338,21 +338,8 @@ const ReferralScreen = ({ user, onBack }) => {
               border: '1px solid rgba(255,255,255,0.08)'
             }}
           >
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.54)', marginBottom: '8px' }}>Referral link</div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.54)', marginBottom: '8px' }}>Invite link</div>
             <div style={{ fontWeight: 700, lineHeight: 1.4, wordBreak: 'break-word' }}>{campaign.referralLink}</div>
-          </div>
-          <div
-            style={{
-              padding: '14px',
-              borderRadius: '18px',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)'
-            }}
-          >
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.54)', marginBottom: '8px' }}>Campaign note</div>
-            <div style={{ fontWeight: 700, lineHeight: 1.45 }}>
-              Share once, keep earning {campaign.commissionPercent}% on every successful order from your invited users.
-            </div>
           </div>
         </div>
 

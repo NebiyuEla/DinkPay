@@ -1599,6 +1599,7 @@
             <button class="btn btn-blue" type="button" id="clearCustomerBotStartButton"><i class="fas fa-rotate-right"></i> Reset bot start</button>
             <button class="btn btn-red" type="button" id="banCustomerBotButton"><i class="fas fa-user-slash"></i> Ban from bot</button>
             <button class="btn btn-primary" type="button" id="unbanCustomerBotButton" hidden><i class="fas fa-user-check"></i> Restore bot access</button>
+            <button class="btn btn-red" type="button" id="deleteCustomerButton"><i class="fas fa-trash-can"></i> Delete customer</button>
           </div>
         </section>
 
@@ -1726,6 +1727,7 @@
     const clearCustomerBotStartButton = document.getElementById('clearCustomerBotStartButton');
     const banCustomerBotButton = document.getElementById('banCustomerBotButton');
     const unbanCustomerBotButton = document.getElementById('unbanCustomerBotButton');
+    const deleteCustomerButton = document.getElementById('deleteCustomerButton');
     const customerProfileAvatar = customerProfileHead.querySelector('.avatar');
     const customerProfileName = customerProfileHead.querySelector('h3');
 
@@ -2090,12 +2092,14 @@
       clearCustomerBotStartButton.onclick = null;
       banCustomerBotButton.onclick = null;
       unbanCustomerBotButton.onclick = null;
+      deleteCustomerButton.onclick = null;
       clearCustomerBotStartButton.hidden = false;
       banCustomerBotButton.hidden = false;
       unbanCustomerBotButton.hidden = true;
       clearCustomerBotStartButton.disabled = true;
       banCustomerBotButton.disabled = true;
       unbanCustomerBotButton.disabled = true;
+      deleteCustomerButton.disabled = true;
       setCustomerProfileOpen(false);
     };
 
@@ -2160,6 +2164,7 @@
       clearCustomerBotStartButton.disabled = true;
       banCustomerBotButton.disabled = true;
       unbanCustomerBotButton.disabled = true;
+      deleteCustomerButton.disabled = true;
 
       try {
         const response = await authFetch(`/admin/users/${encodeURIComponent(currentUserId)}/access`, {
@@ -2171,6 +2176,43 @@
         await openCustomerProfile(currentUserId);
       } catch (error) {
         showToast(error.message || 'Unable to update customer bot access.', 'error');
+      }
+    };
+
+    const deleteCustomerAccount = async () => {
+      if (!activeCustomerProfileId) {
+        showToast('Open a customer profile first.', 'error');
+        return;
+      }
+
+      const reason = window.prompt('Add a reason for deleting this customer:', 'Removed by admin');
+      if (reason === null) {
+        return;
+      }
+
+      const confirmed = window.confirm('Delete this customer and remove their orders, notifications, referral data, and bot session?');
+      if (!confirmed) {
+        return;
+      }
+
+      const currentUserId = activeCustomerProfileId;
+      clearCustomerBotStartButton.disabled = true;
+      banCustomerBotButton.disabled = true;
+      unbanCustomerBotButton.disabled = true;
+      deleteCustomerButton.disabled = true;
+
+      try {
+        const response = await authFetch(`/admin/users/${encodeURIComponent(currentUserId)}`, {
+          method: 'DELETE',
+          body: JSON.stringify({
+            reason: reason.trim() || 'Removed by admin'
+          })
+        });
+        closeCustomerProfile();
+        showToast(response.message || 'Customer deleted.');
+        await refreshDashboard(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to delete this customer.', 'error');
       }
     };
 
@@ -2207,6 +2249,8 @@
       clearCustomerBotStartButton.onclick = () => updateCustomerBotAccess('clear_start');
       banCustomerBotButton.onclick = () => updateCustomerBotAccess('ban');
       unbanCustomerBotButton.onclick = () => updateCustomerBotAccess('unban');
+      deleteCustomerButton.onclick = deleteCustomerAccount;
+      deleteCustomerButton.disabled = false;
 
       customerProfileOrders.innerHTML =
         orders.length > 0
@@ -2286,12 +2330,14 @@
       clearCustomerBotStartButton.onclick = null;
       banCustomerBotButton.onclick = null;
       unbanCustomerBotButton.onclick = null;
+      deleteCustomerButton.onclick = null;
       clearCustomerBotStartButton.hidden = false;
       banCustomerBotButton.hidden = false;
       unbanCustomerBotButton.hidden = true;
       clearCustomerBotStartButton.disabled = true;
       banCustomerBotButton.disabled = true;
       unbanCustomerBotButton.disabled = true;
+      deleteCustomerButton.disabled = true;
       setCustomerProfileOpen(true);
 
       try {

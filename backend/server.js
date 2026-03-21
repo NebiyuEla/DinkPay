@@ -257,6 +257,15 @@ const botSessionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const telegramAccessBlockSchema = new mongoose.Schema(
+  {
+    telegramId: { type: String, required: true, unique: true, trim: true },
+    status: { type: String, default: 'banned' },
+    reason: String
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model('User', userSchema);
 const Order = mongoose.model('Order', orderSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
@@ -265,6 +274,7 @@ const AdminSettings = mongoose.model('AdminSettings', adminSettingsSchema);
 const ReferralCampaign = mongoose.model('ReferralCampaign', referralCampaignSchema);
 const ReferralProfile = mongoose.model('ReferralProfile', referralProfileSchema);
 const BotSession = mongoose.model('BotSession', botSessionSchema);
+const TelegramAccessBlock = mongoose.model('TelegramAccessBlock', telegramAccessBlockSchema);
 
 const createUserToken = (userId) => `dummy-token-${userId}`;
 
@@ -316,6 +326,19 @@ const requireUser = async (req, res, next) => {
     const user = await User.findById(userId).lean();
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.telegramId) {
+      const accessBlock = await getTelegramAccessBlock(user.telegramId);
+      if (accessBlock?.telegramId) {
+        return res.status(403).json({
+          success: false,
+          message:
+            accessBlock.status === 'deleted'
+              ? 'This Telegram account was removed from DINK Pay. Contact admin if you need access again.'
+              : accessBlock.reason || 'This Telegram account is blocked from using DINK Pay right now.'
+        });
+      }
     }
 
     req.user = user;
@@ -695,12 +718,13 @@ const buildDefaultReferralStats = (user = {}) => {
 };
 
 const buildReferralLink = (shareBaseUrl, referralCode) => {
-  const fallbackUrl = `https://t.me/DinkPaymentBot?start=${encodeURIComponent(referralCode)}`;
+  const fallbackUrl = `https://t.me/DinkPaymentBot?start=${encodeURIComponent(referralCode)}&startapp=${encodeURIComponent(referralCode)}`;
 
   try {
     const url = new URL(String(shareBaseUrl || '').trim() || fallbackUrl);
     if (/t\.me$/i.test(url.hostname) || url.hostname.toLowerCase() === 't.me') {
       url.searchParams.set('start', referralCode);
+      url.searchParams.set('startapp', referralCode);
     } else {
       url.searchParams.set('ref', referralCode);
     }
@@ -746,10 +770,10 @@ const formatReferralHistoryDate = (value = new Date()) =>
     minute: '2-digit'
   });
 
-const buildBotAccessState = (user = null) => ({
-  hasTelegramAccount: Boolean(user?.telegramId),
-  banned: Boolean(user?.isBotBanned),
-  reason: String(user?.botBanReason || '').trim(),
+const buildBotAccessState = (user = null, block = null) => ({
+  hasTelegramAccount: Boolean(user?.telegramId || block?.telegramId),
+  banned: Boolean(user?.isBotBanned || block?.telegramId),
+  reason: String(user?.botBanReason || block?.reason || '').trim(),
   startRequired: Boolean(user?.botStartRequired),
   startedAt: user?.botStartedAt || null
 });
@@ -796,6 +820,46 @@ const upsertBotSession = async ({
       setDefaultsOnInsert: true
     }
   );
+};
+
+const getTelegramAccessBlock = async (telegramId) => {
+  const normalizedTelegramId = normalizeTelegramId(telegramId);
+  if (!normalizedTelegramId) {
+    return null;
+  }
+
+  return TelegramAccessBlock.findOne({ telegramId: normalizedTelegramId }).lean();
+};
+
+const saveTelegramAccessBlock = async ({ telegramId, status = 'banned', reason = '' }) => {
+  const normalizedTelegramId = normalizeTelegramId(telegramId);
+  if (!normalizedTelegramId) {
+    return null;
+  }
+
+  return TelegramAccessBlock.findOneAndUpdate(
+    { telegramId: normalizedTelegramId },
+    {
+      $set: {
+        status: String(status || 'banned').trim().toLowerCase() || 'banned',
+        reason: String(reason || '').trim()
+      }
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true
+    }
+  ).lean();
+};
+
+const clearTelegramAccessBlock = async (telegramId) => {
+  const normalizedTelegramId = normalizeTelegramId(telegramId);
+  if (!normalizedTelegramId) {
+    return;
+  }
+
+  await TelegramAccessBlock.deleteOne({ telegramId: normalizedTelegramId });
 };
 
 const getOrCreateReferralProfile = async (user, campaign = null) => {
@@ -1860,6 +1924,17 @@ app.post('/api/auth/telegram', async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Telegram user is required' });
     }
 
+    const accessBlock = await getTelegramAccessBlock(normalizedTelegramId);
+    if (accessBlock?.telegramId) {
+      return res.status(403).json({
+        success: false,
+        message:
+          accessBlock.status === 'deleted'
+            ? 'This Telegram account was removed from DINK Pay. Contact admin if you need access again.'
+            : accessBlock.reason || 'This Telegram account is blocked from using DINK Pay right now.'
+      });
+    }
+
     const existingSession = startParam
       ? await upsertBotSession({
           telegramId: normalizedTelegramId,
@@ -2285,6 +2360,39 @@ app.get('/api/referrals/me', requireUser, async (req, res, next) => {
   }
 });
 
+app.post('/api/referrals/apply', requireUser, async (req, res, next) => {
+  try {
+    const code = extractReferralCode(req.body?.code || req.body?.referralCode || '');
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Referral code is required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const result = await applyReferralCodeToUser(
+      user,
+      code,
+      String(req.body?.source || 'Mini app referral link').trim() || 'Mini app referral link'
+    );
+
+    const [campaign, profile] = await Promise.all([
+      getReferralCampaign(),
+      ReferralProfile.findOne({ userId: user._id }).lean()
+    ]);
+
+    res.json({
+      success: true,
+      applied: Boolean(result.applied),
+      referral: buildReferralStateForUser(user, serializeReferralCampaign(campaign), profile)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/notifications', requireUser, async (req, res, next) => {
   try {
     await syncPendingChapaOrders({ userId: req.user._id });
@@ -2539,6 +2647,48 @@ app.get('/api/admin/users/:id/profile', requireAdmin, async (req, res, next) => 
   }
 });
 
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid customer id' });
+    }
+
+    const user = await User.findById(req.params.id)
+      .select('telegramId fullName email')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    const deleteReason = String(req.body?.reason || 'Removed by admin').trim() || 'Removed by admin';
+
+    await Promise.all([
+      Order.deleteMany({ userId: user._id }),
+      Notification.deleteMany({ userId: user._id }),
+      ReferralProfile.deleteOne({ userId: user._id }),
+      user.telegramId ? BotSession.deleteOne({ telegramId: user.telegramId }) : Promise.resolve()
+    ]);
+
+    if (user.telegramId) {
+      await saveTelegramAccessBlock({
+        telegramId: user.telegramId,
+        status: 'deleted',
+        reason: deleteReason
+      });
+    }
+
+    await User.deleteOne({ _id: user._id });
+
+    res.json({
+      success: true,
+      message: `${user.fullName || user.email || 'Customer'} was removed from DINK Pay.`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.put('/api/admin/users/:id/access', requireAdmin, async (req, res, next) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -2569,6 +2719,11 @@ app.put('/api/admin/users/:id/access', requireAdmin, async (req, res, next) => {
       user.isBotBanned = true;
       user.botBanReason = reason || 'Blocked by admin';
       user.botBannedAt = new Date();
+      await saveTelegramAccessBlock({
+        telegramId: user.telegramId,
+        status: 'banned',
+        reason: user.botBanReason
+      });
       responseMessage = 'Customer is now banned from using the bot.';
     }
 
@@ -2576,6 +2731,7 @@ app.put('/api/admin/users/:id/access', requireAdmin, async (req, res, next) => {
       user.isBotBanned = false;
       user.botBanReason = undefined;
       user.botBannedAt = undefined;
+      await clearTelegramAccessBlock(user.telegramId);
       responseMessage = 'Customer can use the bot again.';
     }
 
@@ -2869,25 +3025,41 @@ app.get('/api/admin/orders', requireAdmin, async (req, res, next) => {
   try {
     await syncPendingChapaOrders();
     const orders = await Order.find().sort({ createdAt: -1 }).lean();
+    const liveUsers = await User.find({
+      _id: {
+        $in: [
+          ...new Set(
+            orders
+              .map((order) => String(order.userId || '').trim())
+              .filter((userId) => mongoose.Types.ObjectId.isValid(userId))
+          )
+        ]
+      }
+    })
+      .select('fullName email phone')
+      .lean();
+    const liveUserMap = new Map(liveUsers.map((user) => [String(user._id), user]));
 
     const hydratedOrders = await Promise.all(
       orders.map(async (order) => {
-        if (!order.user?.fullName && order.userId) {
-          const liveUser = await User.findById(order.userId).select('fullName email phone').lean();
-          if (liveUser) {
-            order.user = {
-              fullName: liveUser.fullName,
-              email: liveUser.email,
-              phone: liveUser.phone
-            };
+        if (order.userId) {
+          const liveUser = liveUserMap.get(String(order.userId));
+          if (!liveUser) {
+            return null;
           }
+
+          order.user = {
+            fullName: liveUser.fullName,
+            email: liveUser.email,
+            phone: liveUser.phone
+          };
         }
 
         return serializeOrder(order);
       })
     );
 
-    res.json({ success: true, orders: filterVisibleOrders(hydratedOrders) });
+    res.json({ success: true, orders: filterVisibleOrders(hydratedOrders.filter(Boolean)) });
   } catch (error) {
     next(error);
   }
@@ -3118,13 +3290,14 @@ app.get('/api/bot/users/:telegramId/access', requireBotSync, async (req, res, ne
       return res.status(400).json({ success: false, message: 'Telegram user is required' });
     }
 
+    const accessBlock = await getTelegramAccessBlock(telegramId);
     const user = await User.findOne({ telegramId })
       .select('telegramId botStartedAt botStartRequired isBotBanned botBanReason')
       .lean();
 
     res.json({
       success: true,
-      access: buildBotAccessState(user)
+      access: buildBotAccessState(user, accessBlock)
     });
   } catch (error) {
     next(error);
@@ -3136,6 +3309,15 @@ app.post('/api/bot/users/:telegramId/start', requireBotSync, async (req, res, ne
     const telegramId = normalizeTelegramId(req.params.telegramId);
     if (!telegramId) {
       return res.status(400).json({ success: false, message: 'Telegram user is required' });
+    }
+
+    const accessBlock = await getTelegramAccessBlock(telegramId);
+    if (accessBlock?.telegramId) {
+      return res.json({
+        success: true,
+        access: buildBotAccessState(null, accessBlock),
+        linked: false
+      });
     }
 
     const session = await upsertBotSession({
@@ -3199,6 +3381,11 @@ app.get('/api/bot/users/:telegramId/orders', requireBotSync, async (req, res, ne
       return res.status(400).json({ success: false, message: 'Telegram user is required' });
     }
 
+    const accessBlock = await getTelegramAccessBlock(telegramId);
+    if (accessBlock?.telegramId) {
+      return res.json({ success: true, orders: [], access: buildBotAccessState(null, accessBlock) });
+    }
+
     const user = await User.findOne({ telegramId })
       .select('_id telegramId botStartedAt botStartRequired isBotBanned botBanReason')
       .lean();
@@ -3225,6 +3412,11 @@ app.get('/api/bot/users/:telegramId/notifications', requireBotSync, async (req, 
     const telegramId = normalizeTelegramId(req.params.telegramId);
     if (!telegramId) {
       return res.status(400).json({ success: false, message: 'Telegram user is required' });
+    }
+
+    const accessBlock = await getTelegramAccessBlock(telegramId);
+    if (accessBlock?.telegramId) {
+      return res.json({ success: true, notifications: [], access: buildBotAccessState(null, accessBlock) });
     }
 
     const user = await User.findOne({ telegramId })
