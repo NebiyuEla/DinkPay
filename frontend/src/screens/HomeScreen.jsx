@@ -74,6 +74,42 @@ const HomeScreen = ({
         </button>
       </div>
 
+      <motion.button
+        type="button"
+        onClick={onReferralClick}
+        whileHover={{ y: -1, scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        animate={{
+          y: [0, -2, 0],
+          boxShadow: [
+            '0 18px 34px rgba(25, 207, 255, 0.18)',
+            '0 24px 42px rgba(73, 250, 132, 0.24)',
+            '0 18px 34px rgba(25, 207, 255, 0.18)'
+          ]
+        }}
+        transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          width: '100%',
+          minHeight: '74px',
+          borderRadius: '26px',
+          border: '1px solid rgba(255,255,255,0.14)',
+          background: 'linear-gradient(135deg, rgba(73,250,132,0.98), rgba(39,212,255,0.94))',
+          color: '#002156',
+          fontSize: '22px',
+          fontWeight: 900,
+          letterSpacing: '-0.02em',
+          cursor: 'pointer',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          padding: '16px 18px'
+        }}
+      >
+        🎯 Referral Campaign
+      </motion.button>
+
       <div style={{ marginBottom: '14px' }}>
         <div
           style={{
@@ -113,37 +149,6 @@ const HomeScreen = ({
           ) : null}
         </div>
       </div>
-
-      <motion.button
-        type="button"
-        onClick={onReferralClick}
-        whileHover={{ y: -1, scale: 1.01 }}
-        whileTap={{ scale: 0.99 }}
-        animate={{
-          y: [0, -2, 0],
-          boxShadow: [
-            '0 16px 28px rgba(25, 207, 255, 0.16)',
-            '0 20px 34px rgba(73, 250, 132, 0.22)',
-            '0 16px 28px rgba(25, 207, 255, 0.16)'
-          ]
-        }}
-        transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          width: '100%',
-          height: '54px',
-          borderRadius: '20px',
-          border: '1px solid rgba(255,255,255,0.12)',
-          background: 'linear-gradient(135deg, rgba(73,250,132,0.95), rgba(39,212,255,0.92))',
-          color: '#002156',
-          fontSize: '15px',
-          fontWeight: 800,
-          letterSpacing: '0.01em',
-          cursor: 'pointer',
-          marginBottom: '16px'
-        }}
-      >
-        🎯 Referral Campaign
-      </motion.button>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '12px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'white', margin: 0 }}>

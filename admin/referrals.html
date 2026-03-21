@@ -558,6 +558,10 @@
                 <label class="field-label" for="campaignTarget">Default target invites</label>
                 <input class="field" id="campaignTarget" type="number" min="1" step="1">
               </div>
+              <div>
+                <label class="field-label" for="campaignMinimumPrizeInvites">Min invites for Top 5 prizes</label>
+                <input class="field" id="campaignMinimumPrizeInvites" type="number" min="1" step="1">
+              </div>
               <div class="full-span">
                 <label class="field-label" for="campaignShareBaseUrl">Share base URL</label>
                 <input class="field" id="campaignShareBaseUrl" type="text" placeholder="https://t.me/DinkPaymentBot">
@@ -572,13 +576,14 @@
 
             <div class="form-actions" style="margin-top: 18px;">
               <button class="btn btn-primary" type="submit" id="saveCampaignButton"><i class="fas fa-floppy-disk"></i> Save campaign</button>
+              <button class="btn btn-red" type="button" id="clearReferralDataButton"><i class="fas fa-trash-can"></i> Clear referral data</button>
             </div>
           </form>
         </section>
 
         <section class="panel">
           <h2 class="section-title">Leaderboard preview</h2>
-          <p class="section-copy">See how the current top performers will appear inside the mini app referral page.</p>
+          <p class="section-copy" id="leaderboardCopy">See how the current top performers will appear inside the mini app referral page.</p>
           <div class="leaderboard-list" id="leaderboardList"></div>
         </section>
       </div>
@@ -848,8 +853,10 @@
       document.getElementById('campaignActive').value = String(campaign?.active ?? true);
       document.getElementById('campaignCommission').value = campaign?.commissionPercent ?? 5;
       document.getElementById('campaignTarget').value = campaign?.targetInvites ?? 50;
+      document.getElementById('campaignMinimumPrizeInvites').value = campaign?.minimumPrizeInvites ?? 50;
       document.getElementById('campaignShareBaseUrl').value = campaign?.shareBaseUrl || 'https://t.me/DinkPaymentBot';
       document.getElementById('campaignShareMessage').value = campaign?.shareMessage || '';
+      document.getElementById('leaderboardCopy').textContent = `Only customers with ${formatNumber(campaign?.minimumPrizeInvites ?? 50)}+ invites qualify for the Top 5 prize slots.`;
       renderPrizeInputs(campaign?.prizes || defaultPrizeEntries());
     };
 
@@ -970,6 +977,7 @@
             active: document.getElementById('campaignActive').value === 'true',
             commissionPercent: document.getElementById('campaignCommission').value.trim(),
             targetInvites: document.getElementById('campaignTarget').value.trim(),
+            minimumPrizeInvites: document.getElementById('campaignMinimumPrizeInvites').value.trim(),
             shareBaseUrl: document.getElementById('campaignShareBaseUrl').value.trim(),
             shareMessage: document.getElementById('campaignShareMessage').value.trim(),
             prizes: getCampaignPrizesFromForm()
@@ -1049,6 +1057,24 @@
         await loadReferralData(true);
       } catch (error) {
         showToast(error.message || 'Unable to reset this customer.', 'error');
+      }
+    });
+
+    document.getElementById('clearReferralDataButton').addEventListener('click', async () => {
+      const confirmed = window.confirm('Clear all saved referral user data and remove all starter values? This resets points, invites, earnings, and history for every customer.');
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await authFetch('/admin/referrals/data', {
+          method: 'DELETE'
+        });
+        selectedUserId = '';
+        showToast('All referral user data cleared.');
+        await loadReferralData(true);
+      } catch (error) {
+        showToast(error.message || 'Unable to clear referral data.', 'error');
       }
     });
 

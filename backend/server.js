@@ -208,6 +208,7 @@ const referralCampaignSchema = new mongoose.Schema(
     endsAt: Date,
     commissionPercent: { type: Number, default: 5 },
     targetInvites: { type: Number, default: 50 },
+    minimumPrizeInvites: { type: Number, default: 50 },
     active: { type: Boolean, default: true },
     shareBaseUrl: { type: String, default: 'https://t.me/DinkPaymentBot' },
     shareMessage: {
@@ -650,9 +651,6 @@ const buildReferralSeed = (user = {}) => {
 
 const buildDefaultReferralStats = (user = {}) => {
   const seed = buildReferralSeed(user);
-  const inviteCount = 12 + (seed % 9);
-  const successfulOrders = Math.max(4, Math.floor(inviteCount * 0.58));
-  const earnings = successfulOrders * 135;
   const referralCodeSource = String(
     user.telegramId ||
       user._id ||
@@ -665,16 +663,12 @@ const buildDefaultReferralStats = (user = {}) => {
     .slice(0, 18);
 
   return {
-    inviteCount,
-    successfulOrders,
-    earnings,
-    points: inviteCount * 18 + successfulOrders * 30,
+    inviteCount: 0,
+    successfulOrders: 0,
+    earnings: 0,
+    points: 0,
     referralCode: `ref_${referralCodeSource || seed}`,
-    history: [
-      { name: 'Rahel G.', joinedAt: '2 hours ago', via: user.fullName || 'Your link', status: 'Joined' },
-      { name: 'Yonatan M.', joinedAt: 'Yesterday', via: user.fullName || 'Your link', status: 'Verified' },
-      { name: 'Hanna D.', joinedAt: '2 days ago', via: user.fullName || 'Your link', status: 'Joined' }
-    ]
+    history: []
   };
 };
 
@@ -718,6 +712,7 @@ const serializeReferralCampaign = (campaign) => ({
   endsAt: campaign?.endsAt || getUpcomingReferralDeadline(),
   commissionPercent: normalizeDiscountPercent(campaign?.commissionPercent, 5),
   targetInvites: normalizeCountValue(campaign?.targetInvites, 50) || 50,
+  minimumPrizeInvites: normalizeCountValue(campaign?.minimumPrizeInvites, 50) || 50,
   active: Boolean(campaign?.active ?? true),
   shareBaseUrl: String(campaign?.shareBaseUrl || 'https://t.me/DinkPaymentBot').trim() || 'https://t.me/DinkPaymentBot',
   shareMessage:
@@ -761,6 +756,7 @@ const buildReferralStateForUser = (user = {}, campaign, profile = null) => {
 
 const serializeReferralUserForAdmin = (user = {}, campaign, profile = null) => {
   const state = buildReferralStateForUser(user, campaign, profile);
+  const minimumPrizeInvites = normalizeCountValue(campaign?.minimumPrizeInvites, 50) || 50;
 
   return {
     userId: String(user._id),
@@ -780,6 +776,7 @@ const serializeReferralUserForAdmin = (user = {}, campaign, profile = null) => {
       profile?.commissionPercentOverride === null || profile?.commissionPercentOverride === undefined
         ? null
         : normalizeDiscountPercent(profile.commissionPercentOverride, state.commissionPercent),
+    eligibleForPrize: state.inviteCount >= minimumPrizeInvites,
     referralCode: state.referralCode,
     referralLink: state.referralLink,
     notes: state.notes,
@@ -796,6 +793,7 @@ const getReferralLeaderboard = async (campaign, { includeUserId = null, limit = 
 
   const ranked = users
     .map((user) => serializeReferralUserForAdmin(user, campaign, profileMap.get(String(user._id))))
+    .filter((user) => user.eligibleForPrize)
     .sort((left, right) => {
       if (right.points !== left.points) {
         return right.points - left.points;
@@ -2344,6 +2342,10 @@ app.put('/api/admin/referrals/campaign', requireAdmin, async (req, res, next) =>
       campaign.targetInvites = normalizeCountValue(req.body.targetInvites, 50) || 50;
     }
 
+    if (req.body?.minimumPrizeInvites !== undefined) {
+      campaign.minimumPrizeInvites = normalizeCountValue(req.body.minimumPrizeInvites, 50) || 50;
+    }
+
     if (req.body?.active !== undefined) {
       campaign.active = normalizeBoolean(req.body.active);
     }
@@ -2413,6 +2415,15 @@ app.put('/api/admin/referrals/users/:id', requireAdmin, async (req, res, next) =
       success: true,
       user: serializeReferralUserForAdmin(user, serializeReferralCampaign(campaign), profile)
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/referrals/data', requireAdmin, async (req, res, next) => {
+  try {
+    await ReferralProfile.deleteMany({});
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

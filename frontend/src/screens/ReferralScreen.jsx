@@ -26,11 +26,10 @@ const getReferralSeed = (user) => {
 };
 
 const buildCampaignModel = (user) => {
-  const seed = getReferralSeed(user);
   const inviteTarget = Number(user?.referralStats?.target) || 50;
-  const invites = Math.min(Number(user?.referralStats?.invites) || (12 + (seed % 9)), inviteTarget);
-  const successfulOrders = Math.max(4, Math.floor(invites * 0.58));
-  const earnings = Number(user?.referralStats?.earnings) || successfulOrders * 135;
+  const invites = Math.min(Number(user?.referralStats?.invites) || 0, inviteTarget);
+  const successfulOrders = Math.max(Number(user?.referralStats?.successfulOrders) || 0, 0);
+  const earnings = Math.max(Number(user?.referralStats?.earnings) || 0, 0);
   const inviteCode = user?.referralCode || `ref_${user?.telegramId || user?._id || user?.id || String(user?.email || 'dink').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10)}`;
 
   return {
@@ -39,6 +38,7 @@ const buildCampaignModel = (user) => {
     active: true,
     endsAt: getCampaignDeadline().toISOString(),
     inviteTarget,
+    minimumPrizeInvites: 50,
     invites,
     successfulOrders,
     earnings,
@@ -46,19 +46,8 @@ const buildCampaignModel = (user) => {
     points: invites * 18 + successfulOrders * 30,
     inviteCode,
     referralLink: `https://t.me/DinkPaymentBot?start=${encodeURIComponent(inviteCode)}`,
-    leaderboard: [
-      { name: 'Abel K.', invites: 91, reward: '20,000 ETB', badge: '#1' },
-      { name: 'Muna T.', invites: 84, reward: '12,000 ETB', badge: '#2' },
-      { name: 'Samrawit L.', invites: 77, reward: '7,500 ETB', badge: '#3' },
-      { name: 'Nahom B.', invites: 71, reward: '5,000 ETB', badge: '#4' },
-      { name: user?.fullName || 'You', invites, reward: `${formatEtb(earnings)} earned`, badge: '#5' }
-    ],
-    history: [
-      { name: 'Rahel G.', joinedAt: '2 hours ago', via: user?.fullName || 'Your link', status: 'Joined' },
-      { name: 'Yonatan M.', joinedAt: 'Yesterday', via: user?.fullName || 'Your link', status: 'Verified' },
-      { name: 'Hanna D.', joinedAt: '2 days ago', via: user?.fullName || 'Your link', status: 'Joined' },
-      { name: 'Mikiyas T.', joinedAt: '3 days ago', via: 'Campaign invite', status: 'Verified' }
-    ],
+    leaderboard: [],
+    history: [],
     prizes: [
       { place: '1st', title: 'Grand Prize', reward: '20,000 ETB cash reward' },
       { place: '2nd', title: 'Champion Bonus', reward: '12,000 ETB cash reward' },
@@ -81,6 +70,7 @@ const normalizeReferralData = (referral, user) => {
     active: referral.campaign.active !== false,
     endsAt: referral.campaign.endsAt || fallback.endsAt,
     inviteTarget: Number(referral.progress?.targetInvites || referral.campaign.targetInvites) || fallback.inviteTarget,
+    minimumPrizeInvites: Number(referral.campaign.minimumPrizeInvites) || fallback.minimumPrizeInvites,
     invites: Number(referral.progress?.invites) || fallback.invites,
     successfulOrders: Number(referral.earnings?.successfulOrders) || fallback.successfulOrders,
     earnings: Number(referral.earnings?.earnings) || fallback.earnings,
@@ -131,6 +121,8 @@ const ReferralScreen = ({ user, onBack }) => {
   const [countdown, setCountdown] = useState(() => getCountdownParts(campaignDeadline));
   const progressPercent = Math.min((campaign.invites / campaign.inviteTarget) * 100, 100);
   const campaignDeadlineLabel = campaignDeadline.toLocaleDateString([], { month: 'long', day: 'numeric' });
+  const leaderboardEntries = Array.isArray(campaign.leaderboard) ? campaign.leaderboard : [];
+  const historyEntries = Array.isArray(campaign.history) ? campaign.history : [];
 
   useEffect(() => {
     setCountdown(getCountdownParts(campaignDeadline));
@@ -416,11 +408,12 @@ const ReferralScreen = ({ user, onBack }) => {
           <div style={{ marginBottom: '14px' }}>
             <h3 style={{ margin: 0, fontSize: '18px' }}>Top users leaderboard</h3>
             <p style={{ margin: '5px 0 0', color: 'rgba(255,255,255,0.56)', fontSize: '13px' }}>
-              See who is leading the campaign right now
+              Only users with {formatNumber(campaign.minimumPrizeInvites)}+ invites qualify for Top 5 rewards
             </p>
           </div>
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {campaign.leaderboard.map((entry) => (
+          {leaderboardEntries.length > 0 ? (
+            <div style={{ display: 'grid', gap: '10px' }}>
+              {leaderboardEntries.map((entry) => (
               <div
                 key={`${entry.badge}-${entry.name}`}
                 style={{
@@ -457,8 +450,22 @@ const ReferralScreen = ({ user, onBack }) => {
                 </div>
                 <div style={{ fontSize: '13px', color: '#49FA84', fontWeight: 700 }}>{entry.reward}</div>
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '18px',
+                borderRadius: '18px',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px dashed rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.58)',
+                textAlign: 'center'
+              }}
+            >
+              No one has reached {formatNumber(campaign.minimumPrizeInvites)} invites yet.
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -470,8 +477,9 @@ const ReferralScreen = ({ user, onBack }) => {
               Track who joined using whose link
             </p>
           </div>
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {campaign.history.map((item) => (
+          {historyEntries.length > 0 ? (
+            <div style={{ display: 'grid', gap: '10px' }}>
+              {historyEntries.map((item) => (
               <div
                 key={`${item.name}-${item.joinedAt}`}
                 style={{
@@ -496,15 +504,29 @@ const ReferralScreen = ({ user, onBack }) => {
                   <div style={{ color: '#49FA84', fontWeight: 700, marginTop: '5px', fontSize: '13px' }}>{item.status}</div>
                 </div>
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '18px',
+                borderRadius: '18px',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px dashed rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.58)',
+                textAlign: 'center'
+              }}
+            >
+              No referral joins have been recorded yet.
+            </div>
+          )}
         </div>
 
         <div style={sectionCardStyle}>
           <div style={{ marginBottom: '14px' }}>
             <h3 style={{ margin: 0, fontSize: '18px' }}>Top 5 prizes</h3>
             <p style={{ margin: '5px 0 0', color: 'rgba(255,255,255,0.56)', fontSize: '13px' }}>
-              Campaign rewards for the strongest performers
+              Campaign rewards for inviters with {formatNumber(campaign.minimumPrizeInvites)}+ confirmed invites
             </p>
           </div>
           <div style={{ display: 'grid', gap: '10px' }}>
